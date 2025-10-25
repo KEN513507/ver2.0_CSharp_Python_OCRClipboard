@@ -5,6 +5,14 @@ Overview
 - DTOs are mirrored between C# and Python.
 - Envelope: newline-delimited JSON. Fields: `id`, `type`, `payload`.
 
+Fixed Specs (No "Virtual Desktop" concept)
+- Target monitor only: choose monitor under mouse via `GetCursorPos` → `MonitorFromPoint`.
+- Coordinates: always monitor-local physical pixels. Origin (0,0) is the chosen monitor's top-left.
+- Overlay: borderless, semi-transparent, topmost, toolwindow. Styles: `WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`.
+- Selection: drag to create rectangle, ESC cancels, mouse-up/Enter confirms.
+- Capture: stubbed with GDI BitBlt one-shot (for now). Future: Windows.Graphics.Capture + GPU crop.
+- Output: send cropped image to OCR backend (currently over stdio as base64; future Named Pipe/gRPC). Copy OCR text to clipboard.
+
 Message Types
 - `health.check` -> respond with `health.ok`
 - `ocr.perform` -> respond with `ocr.result` (stubbed)
@@ -12,14 +20,15 @@ Message Types
 
 Quick Start
 1) Ensure Python is available as `python` and .NET SDK is installed.
-2) From repo root, run the C# app (it will start Python worker automatically):
+2) From repo root, run the C# app (it starts Python worker and overlay):
    - `dotnet run --project src/csharp/OCRClipboard.App`
 
 Project Structure
 - `src/csharp/OCRClipboard.App` — C# console app, DTOs, and IPC client
+- `src/csharp/OCRClipboard.Overlay` — WPF overlay (single monitor), selection → PNG capture (GDI fallback)
 - `src/python/ocr_worker` — Python worker, DTOs, and handlers
 
 Notes
 - The C# host sets `PYTHONPATH` to `src/python` so the module `ocr_worker` is importable.
 - The Python worker is unbuffered (`-u`) to flush output promptly.
-
+ - The overlay and selection operate strictly in monitor-local physical pixel coordinates.

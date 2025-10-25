@@ -100,3 +100,10 @@ coverage/
 
 # Project specific
 # Add more patterns as needed
+*.log
+*.json
+*.bak
+*.viminf
+cache/
+huggingface/
+.codex/

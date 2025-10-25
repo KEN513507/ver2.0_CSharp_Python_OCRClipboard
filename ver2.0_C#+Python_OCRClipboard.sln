@@ -1,0 +1,39 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "csharp", "csharp", "{EE222B14-4095-D8D2-8B9B-4218DD5B4CA2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OCRClipboard.App", "src\csharp\OCRClipboard.App\OCRClipboard.App.csproj", "{10401A26-1646-6363-4266-E96AB8C1FC40}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OCRClipboard.Overlay", "src\csharp\OCRClipboard.Overlay\OCRClipboard.Overlay.csproj", "{894307AB-396F-E11C-6FE1-7EA2944E8D02}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{10401A26-1646-6363-4266-E96AB8C1FC40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10401A26-1646-6363-4266-E96AB8C1FC40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10401A26-1646-6363-4266-E96AB8C1FC40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10401A26-1646-6363-4266-E96AB8C1FC40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{894307AB-396F-E11C-6FE1-7EA2944E8D02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{894307AB-396F-E11C-6FE1-7EA2944E8D02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{894307AB-396F-E11C-6FE1-7EA2944E8D02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{894307AB-396F-E11C-6FE1-7EA2944E8D02}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{EE222B14-4095-D8D2-8B9B-4218DD5B4CA2} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{10401A26-1646-6363-4266-E96AB8C1FC40} = {EE222B14-4095-D8D2-8B9B-4218DD5B4CA2}
+		{894307AB-396F-E11C-6FE1-7EA2944E8D02} = {EE222B14-4095-D8D2-8B9B-4218DD5B4CA2}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3A41ACC2-F78B-453C-A779-4450BCF3CE3B}
+	EndGlobalSection
+EndGlobal
