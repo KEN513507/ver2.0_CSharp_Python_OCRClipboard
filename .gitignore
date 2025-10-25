@@ -1,0 +1,102 @@
+# OS/IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+.vscode/
+.vs/
+*.dll
+*.exe
+
+# SSH keys & secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.cer
+*.der
+*.pub
+*.gpg
+*.asc
+*.env
+secrets.json
+
+# User files
+*.sqlite
+*.db
+*.db3
+*.litedb
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.envrc
+
+# C#/.NET
+bin/
+obj/
+*.user
+*.suo
+*.vspscc
+*.vssscc
+*.cache
+*.pdb
+*.mdb
+*.exe
+*.dll
+*.nupkg
+*.nuget
+*.snk
+*.psess
+*.vsp
+*.vsix
+*.vsixmanifest
+*.vsscc
+*.vssscc
+*.scc
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.pidb
+*.svclog
+*.suo
+*.userprefs
+*.dbmdl
+*.bak
+*.log
+*.vs/
+
+# Test/coverage
+coverage/
+*.cover
+*.coverage
+*.lcov
+*.clover
+*.testresults
+*.trx
+*.xml
+*.json
+
+# Others
+.idea/
+*.iml
+*.ipr
+*.iws
+*.sublime*
+*.code-workspace
+*.orig
+*.rej
+*.patch
+*.diff
+
+# Project specific
+# Add more patterns as needed
