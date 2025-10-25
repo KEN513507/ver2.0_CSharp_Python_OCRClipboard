@@ -1,8 +1,8 @@
 using System;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 using OCRClipboard.Overlay.Native;
 
 namespace OCRClipboard.Overlay.Services;
@@ -31,15 +31,21 @@ public static class CaptureService
 
         Win32.BitBlt(hdcMem, 0, 0, width, height, hdcScreen, srcX, srcY, Win32.SRCCOPY);
 
-        using var bmp = Image.FromHbitmap(hBmp);
+        var bmpSource = Imaging.CreateBitmapSourceFromHBitmap(
+            hBmp,
+            IntPtr.Zero,
+            Int32Rect.Empty,
+            BitmapSizeOptions.FromEmptyOptions());
+
         Win32.SelectObject(hdcMem, hOld);
         Win32.DeleteObject(hBmp);
         Win32.DeleteDC(hdcMem);
         Win32.ReleaseDC(hDesktop, hdcScreen);
 
         using var ms = new MemoryStream();
-        bmp.Save(ms, ImageFormat.Png);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bmpSource));
+        encoder.Save(ms);
         return ms.ToArray();
     }
 }
-

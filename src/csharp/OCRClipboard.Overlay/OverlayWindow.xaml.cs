@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Controls;
 using OCRClipboard.Overlay.Models;
 using OCRClipboard.Overlay.Native;
 
@@ -127,4 +128,3 @@ public partial class OverlayWindow : Window
         Close();
     }
 }
-
