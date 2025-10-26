@@ -1,0 +1,21 @@
+C:\Program Files\dotnet\sdk\9.0.111\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Sdk.DefaultItems.targets(148,5): warning NETSDK1137: Microsoft.NET.Sdk.WindowsDesktop SDK 繧剃ｽｿ逕ｨ縺吶ｋ蠢・ｦ√・縺ｪ縺上↑繧翫∪縺励◆縲ゅΝ繝ｼ繝・繝励Ο繧ｸ繧ｧ繧ｯ繝郁ｦ∫ｴ縺ｮ SDK 螻樊ｧ繧・'Microsoft.NET.Sdk' 縺ｫ螟画峩縺吶ｋ縺薙→繧偵＃讀懆ｨ弱￥縺縺輔＞縲・[C:\Users\user\Documents\Projects\ver2.0_C#+Python_OCRClipboard\src\csharp\OCRClipboard.Overlay\OCRClipboard.Overlay.csproj]
+[C#] Starting Python worker and launching overlay...
+[C#] Health OK: ok
+[COORD] === Monitor & Window Coordinates ===
+[COORD] rcMonitor (physical px): Left=0, Top=0, Right=1920, Bottom=1080
+[COORD] Monitor size (physical): 1920 x 1080
+[COORD] DPI Scale: X=1.2500, Y=1.2500
+[COORD] WPF Window.Left/Top/Width/Height (DIPs): Left=0.00, Top=0.00, Width=1920.00, Height=1080.00
+[COORD] Expected DIPs: Left=0.00, Top=0.00, Width=1536.00, Height=864.00
+[COORD] Mismatch: Left=0.00, Top=0.00, Width=384.00, Height=216.00
+[SELECT] === User Selection ===
+[SELECT] Logical rect (DIPs): X=876.80, Y=384.00, W=66.40, H=36.00
+[SELECT] Window offset (DIPs as stored): Left=0.00, Top=0.00
+[SELECT] DPI scale: X=1.2500, Y=1.2500
+[SELECT] Converted physical (current logic): X=1096, Y=480, W=83, H=45
+[SELECT] Expected physical (monitor origin + selection): X=1096, Y=480
+[SELECT] Difference vs expected: dX=0, dY=0
+[SELECT] Result offsets (monitor-local): X=1096, Y=480
+[C#] Debug capture saved: C:\Users\user\Documents\Projects\ver2.0_C#+Python_OCRClipboard\debug_capture.png
+[C#] OCR Text: 'stubbed OCR: source=imageBase64, lang=eng, bytes=1480' (conf=0)
+[C#] Done.

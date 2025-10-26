@@ -5,7 +5,7 @@ using OCRClipboard.App.Dto;
 
 namespace OCRClipboard.App;
 
-public class Program
+public partial class Program
 {
     public static async Task Main(string[] args)
     {
@@ -31,6 +31,8 @@ public class Program
         var selection = await OCRClipboard.Overlay.OverlayRunner.RunSelectionCaptureAsync();
         if (selection != null)
         {
+            SaveDebugCapture(selection.Value.imageBase64);
+
             var req = new OcrRequest
             {
                 Language = "eng",
@@ -76,6 +78,29 @@ public partial class Program
         th.SetApartmentState(ApartmentState.STA);
         th.Start();
         done.WaitOne(TimeSpan.FromSeconds(2));
+    }
+
+    private static void SaveDebugCapture(string base64)
+    {
+        try
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "debug_capture.png");
+            var bytes = Convert.FromBase64String(base64);
+            File.WriteAllBytes(path, bytes);
+
+            if (File.Exists(path))
+            {
+                Console.WriteLine($"[C#] Debug capture saved: {path}");
+            }
+            else
+            {
+                Console.Error.WriteLine("[C#] Debug capture save attempted, but file not found afterwards.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[C#] Failed to save debug capture: {ex.Message}");
+        }
     }
     
 }

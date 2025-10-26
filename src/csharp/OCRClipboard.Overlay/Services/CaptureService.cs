@@ -46,6 +46,23 @@ public static class CaptureService
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bmpSource));
         encoder.Save(ms);
+
+        // 保存先: repo直下/logs/debug_capture.png
+        var repoRoot = TryFindRepoRoot(AppContext.BaseDirectory) ?? Environment.CurrentDirectory;
+        var logsDir = Path.Combine(repoRoot, "logs");
+        Directory.CreateDirectory(logsDir);
+        var savePath = Path.Combine(logsDir, "debug_capture.png");
+        File.WriteAllBytes(savePath, ms.ToArray());
+
         return ms.ToArray();
+
+        // .gitを辿ってrepo rootを判定
+        static string? TryFindRepoRoot(string startDir)
+        {
+            var dir = new DirectoryInfo(startDir);
+            while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".git")))
+                dir = dir.Parent;
+            return dir?.FullName;
+        }
     }
 }

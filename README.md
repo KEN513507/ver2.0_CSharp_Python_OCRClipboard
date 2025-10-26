@@ -23,6 +23,17 @@ Quick Start
 2) From repo root, run the C# app (it starts Python worker and overlay):
    - `dotnet run --project src/csharp/OCRClipboard.App`
 
+# 実行方法（推奨）
+
+```pwsh
+# repo root から実行
+cd C:\Users\user\Documents\Projects\ver2.0_C#+Python_OCRClipboard
+
+dotnet run --project src/csharp/OCRClipboard.App
+```
+
+- キャプチャ画像は `logs/debug_capture.png` に保存されます（どこから実行しても一貫）。
+
 Project Structure
 - `src/csharp/OCRClipboard.App` — C# console app, DTOs, and IPC client
 - `src/csharp/OCRClipboard.Overlay` — WPF overlay (single monitor), selection → PNG capture (GDI fallback)

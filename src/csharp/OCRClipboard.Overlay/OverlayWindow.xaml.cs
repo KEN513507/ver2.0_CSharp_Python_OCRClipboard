@@ -24,29 +24,32 @@ public partial class OverlayWindow : Window
     public OverlayWindow()
     {
         InitializeComponent();
-        Loaded += OnLoaded;
+        SourceInitialized += OnSourceInitialized;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnSourceInitialized(object? sender, EventArgs e)
     {
-        var hwnd = new WindowInteropHelper(this).Handle;
+        var hwndSource = PresentationSource.FromVisual(this) as HwndSource;
+        if (hwndSource == null) return;
+        var hwnd = hwndSource.Handle;
+
         SetWindowStyles(hwnd);
 
-        // Pick monitor under cursor
-        if (!Win32.GetCursorPos(out var pt)) Close();
+        if (!Win32.GetCursorPos(out var pt)) { Close(); return; }
         _hMonitor = Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
         _mi = new Win32.MONITORINFO();
-        if (!Win32.GetMonitorInfo(_hMonitor, _mi)) Close();
-
-        // Position to exactly cover target monitor (virtual-screen coords)
-        Left = _mi.rcMonitor.Left;
-        Top = _mi.rcMonitor.Top;
-        Width = _mi.rcMonitor.Right - _mi.rcMonitor.Left;
-        Height = _mi.rcMonitor.Bottom - _mi.rcMonitor.Top;
+        if (!Win32.GetMonitorInfo(_hMonitor, _mi)) { Close(); return; }
 
         var dpi = VisualTreeHelper.GetDpi(this);
         _dpiScaleX = dpi.DpiScaleX;
         _dpiScaleY = dpi.DpiScaleY;
+
+        Left = _mi.rcMonitor.Left / _dpiScaleX;
+        Top = _mi.rcMonitor.Top / _dpiScaleY;
+        Width = (_mi.rcMonitor.Right - _mi.rcMonitor.Left) / _dpiScaleX;
+        Height = (_mi.rcMonitor.Bottom - _mi.rcMonitor.Top) / _dpiScaleY;
+
+        LogMonitorAndWindowState();
     }
 
     private static void SetWindowStyles(IntPtr hwnd)
@@ -110,9 +113,16 @@ public partial class OverlayWindow : Window
         if (r.Width < 0) { r = new Rect(r.X + r.Width, r.Y, -r.Width, r.Height); }
         if (r.Height < 0) { r = new Rect(r.X, r.Y + r.Height, r.Width, -r.Height); }
 
+        LogSelection(r);
+
         // Convert from WPF DIPs to physical pixels, monitor-local origin
-        var px = (int)Math.Round(r.X * _dpiScaleX);
-        var py = (int)Math.Round(r.Y * _dpiScaleY);
+        var screenLeftDip = Left + r.X;
+        var screenTopDip = Top + r.Y;
+
+        var leftPxVirtual = (int)Math.Round(screenLeftDip * _dpiScaleX);
+        var topPxVirtual = (int)Math.Round(screenTopDip * _dpiScaleY);
+        var px = leftPxVirtual - _mi.rcMonitor.Left;
+        var py = topPxVirtual - _mi.rcMonitor.Top;
         var pw = (int)Math.Round(r.Width * _dpiScaleX);
         var ph = (int)Math.Round(r.Height * _dpiScaleY);
 
@@ -127,4 +137,45 @@ public partial class OverlayWindow : Window
 
         Close();
     }
+
+    private void LogMonitorAndWindowState()
+    {
+        Console.WriteLine("[COORD] === Monitor & Window Coordinates ===");
+        Console.WriteLine($"[COORD] rcMonitor (physical px): Left={_mi.rcMonitor.Left}, Top={_mi.rcMonitor.Top}, Right={_mi.rcMonitor.Right}, Bottom={_mi.rcMonitor.Bottom}");
+        Console.WriteLine($"[COORD] Monitor size (physical): {_mi.rcMonitor.Right - _mi.rcMonitor.Left} x {_mi.rcMonitor.Bottom - _mi.rcMonitor.Top}");
+        Console.WriteLine($"[COORD] DPI Scale: X={_dpiScaleX:F4}, Y={_dpiScaleY:F4}");
+
+        var expectedLeftDip = _mi.rcMonitor.Left / _dpiScaleX;
+        var expectedTopDip = _mi.rcMonitor.Top / _dpiScaleY;
+        var expectedWidthDip = (_mi.rcMonitor.Right - _mi.rcMonitor.Left) / _dpiScaleX;
+        var expectedHeightDip = (_mi.rcMonitor.Bottom - _mi.rcMonitor.Top) / _dpiScaleY;
+
+        Console.WriteLine($"[COORD] WPF Window.Left/Top/Width/Height (DIPs): Left={Left:F2}, Top={Top:F2}, Width={Width:F2}, Height={Height:F2}");
+        Console.WriteLine($"[COORD] Expected DIPs: Left={expectedLeftDip:F2}, Top={expectedTopDip:F2}, Width={expectedWidthDip:F2}, Height={expectedHeightDip:F2}");
+        Console.WriteLine($"[COORD] Mismatch: Left={Math.Abs(Left - expectedLeftDip):F2}, Top={Math.Abs(Top - expectedTopDip):F2}, Width={Math.Abs(Width - expectedWidthDip):F2}, Height={Math.Abs(Height - expectedHeightDip):F2}");
+    }
+
+    private void LogSelection(Rect selectionDip)
+    {
+        Console.WriteLine("[SELECT] === User Selection ===");
+        Console.WriteLine($"[SELECT] Logical rect (DIPs): X={selectionDip.X:F2}, Y={selectionDip.Y:F2}, W={selectionDip.Width:F2}, H={selectionDip.Height:F2}");
+        Console.WriteLine($"[SELECT] Window offset (DIPs as stored): Left={Left:F2}, Top={Top:F2}");
+        Console.WriteLine($"[SELECT] DPI scale: X={_dpiScaleX:F4}, Y={_dpiScaleY:F4}");
+
+        var screenLeftDip = Left + selectionDip.X;
+        var screenTopDip = Top + selectionDip.Y;
+        var leftPxVirtual = (int)Math.Round(screenLeftDip * _dpiScaleX);
+        var topPxVirtual = (int)Math.Round(screenTopDip * _dpiScaleY);
+        var expectedLeftPx = _mi.rcMonitor.Left + (int)Math.Round(selectionDip.X * _dpiScaleX);
+        var expectedTopPx = _mi.rcMonitor.Top + (int)Math.Round(selectionDip.Y * _dpiScaleY);
+
+        Console.WriteLine($"[SELECT] Converted physical (current logic): X={leftPxVirtual}, Y={topPxVirtual}, W={(int)Math.Round(selectionDip.Width * _dpiScaleX)}, H={(int)Math.Round(selectionDip.Height * _dpiScaleY)}");
+        Console.WriteLine($"[SELECT] Expected physical (monitor origin + selection): X={expectedLeftPx}, Y={expectedTopPx}");
+        Console.WriteLine($"[SELECT] Difference vs expected: dX={Math.Abs(leftPxVirtual - expectedLeftPx)}, dY={Math.Abs(topPxVirtual - expectedTopPx)}");
+        Console.WriteLine($"[SELECT] Result offsets (monitor-local): X={leftPxVirtual - _mi.rcMonitor.Left}, Y={topPxVirtual - _mi.rcMonitor.Top}");
+    }
 }
+
+
+
+
