@@ -43,3 +43,15 @@ Notes
 - The C# host sets `PYTHONPATH` to `src/python` so the module `ocr_worker` is importable.
 - The Python worker is unbuffered (`-u`) to flush output promptly.
  - The overlay and selection operate strictly in monitor-local physical pixel coordinates.
+
+---
+
+## 現状の課題・注意点
+
+- ディスプレイ1（主画面）では矩形選択範囲が正確にOCR可能。
+- ディスプレイ2（拡張画面）では選択範囲が大きくズレる現象あり。
+- 原因は座標系・DPI・仮想スクリーンの扱い。
+- 今後、複数ディスプレイでも正確な範囲指定ができるよう修正予定。
+- この注意書きは課題解決後に削除してください。
+
+---

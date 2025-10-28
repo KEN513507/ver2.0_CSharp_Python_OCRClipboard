@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -23,13 +24,29 @@ public static class CaptureService
         var srcX = monLeft + x;
         var srcY = monTop + y;
 
+        CaptureDiagnostics.RecordCaptureInvocation(new CaptureInvocationDiagnostics
+        {
+            MonitorHandle = CaptureDiagnostics.FormatHandle(hMonitor),
+            MonitorRect = new RectInt(
+                mi.rcMonitor.Left,
+                mi.rcMonitor.Top,
+                mi.rcMonitor.Right - mi.rcMonitor.Left,
+                mi.rcMonitor.Bottom - mi.rcMonitor.Top),
+            RequestedMonitorLocalPixels = new RectInt(x, y, width, height),
+            RequestedVirtualScreenPixels = new RectInt(srcX, srcY, width, height)
+        });
+
         var hDesktop = IntPtr.Zero;
         var hdcScreen = Win32.GetDC(hDesktop);
         var hdcMem = Win32.CreateCompatibleDC(hdcScreen);
         var hBmp = Win32.CreateCompatibleBitmap(hdcScreen, width, height);
         var hOld = Win32.SelectObject(hdcMem, hBmp);
 
-        Win32.BitBlt(hdcMem, 0, 0, width, height, hdcScreen, srcX, srcY, Win32.SRCCOPY);
+        if (!Win32.BitBlt(hdcMem, 0, 0, width, height, hdcScreen, srcX, srcY, Win32.SRCCOPY))
+        {
+            var error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"BitBlt failed (0x{error:X})");
+        }
 
         var bmpSource = Imaging.CreateBitmapSourceFromHBitmap(
             hBmp,

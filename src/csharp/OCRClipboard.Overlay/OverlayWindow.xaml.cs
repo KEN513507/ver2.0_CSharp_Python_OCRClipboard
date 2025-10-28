@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Controls;
 using OCRClipboard.Overlay.Models;
 using OCRClipboard.Overlay.Native;
+using OCRClipboard.Overlay.Services;
 
 namespace OCRClipboard.Overlay;
 
@@ -119,21 +120,49 @@ public partial class OverlayWindow : Window
         var screenLeftDip = Left + r.X;
         var screenTopDip = Top + r.Y;
 
-        var leftPxVirtual = (int)Math.Round(screenLeftDip * _dpiScaleX);
-        var topPxVirtual = (int)Math.Round(screenTopDip * _dpiScaleY);
+        var virtualLeftExact = screenLeftDip * _dpiScaleX;
+        var virtualTopExact = screenTopDip * _dpiScaleY;
+        var virtualWidthExact = r.Width * _dpiScaleX;
+        var virtualHeightExact = r.Height * _dpiScaleY;
+
+        var leftPxVirtual = (int)Math.Round(virtualLeftExact);
+        var topPxVirtual = (int)Math.Round(virtualTopExact);
         var px = leftPxVirtual - _mi.rcMonitor.Left;
         var py = topPxVirtual - _mi.rcMonitor.Top;
-        var pw = (int)Math.Round(r.Width * _dpiScaleX);
-        var ph = (int)Math.Round(r.Height * _dpiScaleY);
+        var widthPx = Math.Max((int)Math.Round(virtualWidthExact), 1);
+        var heightPx = Math.Max((int)Math.Round(virtualHeightExact), 1);
 
         Result = new SelectionResult
         {
             MonitorHandle = _hMonitor,
             X = Math.Max(px, 0),
             Y = Math.Max(py, 0),
-            Width = Math.Max(pw, 1),
-            Height = Math.Max(ph, 1)
+            Width = widthPx,
+            Height = heightPx
         };
+
+        CaptureDiagnostics.RecordSelection(new SelectionDiagnostics
+        {
+            MonitorHandle = CaptureDiagnostics.FormatHandle(_hMonitor),
+            MonitorRect = new RectInt(
+                _mi.rcMonitor.Left,
+                _mi.rcMonitor.Top,
+                _mi.rcMonitor.Right - _mi.rcMonitor.Left,
+                _mi.rcMonitor.Bottom - _mi.rcMonitor.Top),
+            WorkAreaRect = new RectInt(
+                _mi.rcWork.Left,
+                _mi.rcWork.Top,
+                _mi.rcWork.Right - _mi.rcWork.Left,
+                _mi.rcWork.Bottom - _mi.rcWork.Top),
+            DpiScaleX = _dpiScaleX,
+            DpiScaleY = _dpiScaleY,
+            WindowRectDips = new RectDouble(Left, Top, Width, Height),
+            SelectionLogicalDips = new RectDouble(r.X, r.Y, r.Width, r.Height),
+            SelectionVirtualScreenExact = new RectDouble(virtualLeftExact, virtualTopExact, virtualWidthExact, virtualHeightExact),
+            SelectionVirtualScreenPixels = new RectInt(leftPxVirtual, topPxVirtual, widthPx, heightPx),
+            SelectionMonitorLocalPixels = new RectInt(px, py, widthPx, heightPx),
+            ResultRect = new RectInt(Result.X, Result.Y, Result.Width, Result.Height)
+        });
 
         Close();
     }
@@ -174,8 +203,5 @@ public partial class OverlayWindow : Window
         Console.WriteLine($"[SELECT] Difference vs expected: dX={Math.Abs(leftPxVirtual - expectedLeftPx)}, dY={Math.Abs(topPxVirtual - expectedTopPx)}");
         Console.WriteLine($"[SELECT] Result offsets (monitor-local): X={leftPxVirtual - _mi.rcMonitor.Left}, Y={topPxVirtual - _mi.rcMonitor.Top}");
     }
+
 }
-
-
-
-

@@ -64,9 +64,8 @@ internal static class Win32
     [DllImport("gdi32.dll")]
     public static extern bool DeleteObject(IntPtr hObject);
 
-    [DllImport("gdi32.dll")]
+    [DllImport("gdi32.dll", SetLastError = true)]
     public static extern bool BitBlt(IntPtr hdc, int x, int y, int cx, int cy, IntPtr hdcSrc, int x1, int y1, int rop);
 
     public const int SRCCOPY = 0x00CC0020;
 }
-
