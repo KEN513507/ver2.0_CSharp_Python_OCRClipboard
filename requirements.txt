@@ -1,0 +1,3 @@
+yomitoku
+Pillow
+opencv-python
