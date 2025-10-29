@@ -1,5 +1,50 @@
 # 🖼️ Custom OCR Clipboard App (for Windows)
 
+**現状のディレクトリツリー（2025-10-29時点）**
+
+```
+ocr_clipboard_app/
+├── README.md
+```
+
+※現時点では `README.md` のみ存在しています。
+
+---
+
+## 状況・今後の作業
+
+- サンプルディレクトリ構成（README記載）は以下の通り：
+  - capture.py, ocr.py, test_ocr.py, fonts/, images/, requirements.txt, .github/workflows/ci.yml など
+- しかし、現状はまだ各実装ファイル・サブディレクトリは未作成です。
+- 実装開始前の雛形状態です。
+- 今後、README記載の構成に沿って capture.py, ocr.py, test_ocr.py などを追加していく必要があります。
+- 依存パッケージ・CI/CD・カスタマイズ方針はREADMEに明記済み。
+
+---
+
+## 参考: README記載のFeatures
+
+- PaddleOCR日本語対応
+- Display 1専用・DPI 100%固定
+- Tkinter範囲選択
+- MSS/PILキャプチャ
+- クリップボード自動コピー
+- 信頼度・可視化
+- CLI/自動化
+- Human-in-the-Loop拡張性
+
+---
+
+## 次のステップ
+
+1. README記載の構成に従い、各Pythonファイル・サブディレクトリを新規作成
+2. requirements.txtを追加し、依存パッケージを管理
+3. 実装・テスト・CI/CDの整備
+
+---
+
+現状は「README.mdのみ」の初期状態です。今後のファイル追加・実装方針はREADME記載の構成・Featuresに従って進めてください。
+
 **A DPI-aware, high-quality, fast OCR app for Windows.**  
 This app allows you to select a region of the screen, perform OCR using PaddleOCR (Japanese), and copy the recognized text to clipboard **automatically**.  
 Supports display scaling quirks, runs on **Display 1 only**, and is customizable for your needs.

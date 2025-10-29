@@ -1,0 +1,22 @@
+# TODOリスト（2025-10-30）
+
+- DPIスケール取得・検証
+- 座標変換ロジックの分離
+- OverlayWindowの矩形選択補正
+- GraphicsCaptureItemのtransform確認
+- JsonRpcClientの座標受け渡し検証
+- Direct3DDevice生成のモニター依存性調査
+- HMONITOR列挙・選択ロジックのテスト
+- セカンダリ画面の黒画像・白線原因特定
+- 構造化ログ設計
+- capture_diagnostics.jsonl出力実装
+- run_all_coordinate_tests.ps1のシナリオ分岐強化
+- run_all_coordinate_tests.ps1の自動判定追加
+- TEST-A1中央表示の自動検証
+- OCRWorkerの品質判定関数追加
+- OCRWorkerのタイムアウト処理実装
+- OCR結果の誤差ログ出力
+- READMEの課題・運用ルール追記
+- PROJECT_SPEC.mdの仕様反映
+- テストパターンHTMLのズレ可視化強化
+- 全体リファクタリング・コード整理
