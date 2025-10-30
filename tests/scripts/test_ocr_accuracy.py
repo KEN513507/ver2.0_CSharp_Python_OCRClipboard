@@ -105,12 +105,12 @@ def test_ocr_accuracy():
             if not actual_text.strip():
                 print("  Yomitoku returned empty text, trying PaddleOCR fallback...")
                 from paddleocr import PaddleOCR
-                paddle_ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
-                paddle_result = paddle_ocr.ocr(opencv_image, cls=True)
+                paddle_ocr = PaddleOCR(use_textline_orientation=True, lang='japan')  # use_gpu=False 削除, use_angle_cls -> use_textline_orientation
+                paddle_result = paddle_ocr.predict(opencv_image)
 
-                if paddle_result and paddle_result[0]:
+                if paddle_result and paddle_result[0]:  # paddle_result[0] を参照
                     # Extract text from PaddleOCR results
-                    text_blocks = [word_info[1][0] for line in paddle_result for word_info in line]
+                    text_blocks = [word_info[1][0] for line in paddle_result[0] for word_info in line]  # paddle_result[0] をループ
                     actual_text = ''.join(text_blocks)
                     # PaddleOCR doesn't provide per-word confidence easily, use average
                     confidence = 0.8  # Default confidence for PaddleOCR fallback
@@ -123,11 +123,11 @@ def test_ocr_accuracy():
             # Try PaddleOCR as last resort
             try:
                 from paddleocr import PaddleOCR
-                paddle_ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
-                paddle_result = paddle_ocr.ocr(opencv_image, cls=True)
+                paddle_ocr = PaddleOCR(use_textline_orientation=True, lang='en')  # use_gpu=False 削除, use_angle_cls -> use_textline_orientation
+                paddle_result = paddle_ocr.predict(opencv_image)  # ocr.ocr -> ocr.predict
 
-                if paddle_result and paddle_result[0]:
-                    text_blocks = [word_info[1][0] for line in paddle_result for word_info in line]
+                if paddle_result and paddle_result[0]:  # paddle_result[0] を参照
+                    text_blocks = [word_info[1][0] for line in paddle_result[0] for word_info in line]  # paddle_result[0] をループ
                     actual_text = ''.join(text_blocks)
                     confidence = 0.8
                 else:
