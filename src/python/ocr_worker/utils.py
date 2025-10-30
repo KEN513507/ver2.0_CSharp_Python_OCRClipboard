@@ -68,16 +68,22 @@ def normalize_bbox_coordinates(bbox: List[int], image_width: int, image_height: 
     ]
 
 
+HORIZONTAL_GAP_TOLERANCE = 10  # pixels
+
+
 def merge_text_boxes(boxes: List[List[int]]) -> List[List[int]]:
     """
     Merge intersecting or adjacent bounding boxes.
     Boxes are in format [x1, y1, x2, y2].
-    Merges boxes that overlap or touch.
+    Merges boxes that overlap or fall within a small horizontal gap tolerance.
     """
     if not boxes:
         return []
 
-    boxes = [list(b) for b in boxes]  # copy to avoid modifying original
+    boxes = [list(b) for b in boxes if is_bbox_valid(b)]  # copy to avoid modifying original
+
+    if not boxes:
+        return []
 
     while True:
         merged_any = False
@@ -95,13 +101,21 @@ def merge_text_boxes(boxes: List[List[int]]) -> List[List[int]]:
         if not merged_any:
             break
 
-    return boxes
+    return sorted(boxes, key=lambda b: (b[1], b[0]))
 
 
 def _boxes_intersect(b1: List[int], b2: List[int]) -> bool:
-    """Check if two boxes intersect (including touching)."""
-    return (b1[2] >= b2[0] and b1[0] <= b2[2] and
-            b1[3] >= b2[1] and b1[1] <= b2[3])
+    """Check if two boxes intersect or sit within the horizontal gap tolerance on the same line."""
+    vertical_overlap = not (b1[3] < b2[1] or b2[3] < b1[1])
+
+    if not vertical_overlap:
+        return False
+
+    if b1[2] >= b2[0] and b1[0] <= b2[2]:
+        return True  # direct overlap
+
+    horizontal_gap = min(abs(b2[0] - b1[2]), abs(b1[0] - b2[2]))
+    return horizontal_gap <= HORIZONTAL_GAP_TOLERANCE
 
 
 def _union_boxes(b1: List[int], b2: List[int]) -> List[int]:

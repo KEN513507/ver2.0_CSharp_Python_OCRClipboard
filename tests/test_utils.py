@@ -56,17 +56,20 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(levenshtein_distance("hello", "hxllo"), 1)
         self.assertEqual(levenshtein_distance("hello", "world"), 4)
 
-    def test_calc_error_rate(self):
-        # Mock OCR result format matching PaddleOCR output structure
-        # PaddleOCR returns: [[[[bbox], (text, confidence)]]]
-        result = [[[[[0, 0, 100, 50], ("text", 0.9)]]]]
+    def test_calc_error_rate_dict_payload(self):
+        result = {"rec_texts": ["text"], "rec_scores": [0.9]}
         ground_truth = "text"
-        # This function prints, so we can't easily test output
-        # In real testing, we'd capture stdout or modify the function
-        try:
-            calc_error_rate(result, ground_truth)
-        except Exception as e:
-            self.fail(f"calc_error_rate raised an exception: {e}")
+        self.assertAlmostEqual(calc_error_rate(result, ground_truth), 0.0)
+
+    def test_calc_error_rate_legacy_payload(self):
+        legacy_result = [[
+            [[0, 0, 10, 10], ("foo", 0.9)],
+            [[12, 0, 22, 10], ("bar", 0.8)]
+        ]]
+        self.assertAlmostEqual(calc_error_rate(legacy_result, "foobar"), 0.0)
+
+    def test_calc_error_rate_missing_prediction(self):
+        self.assertAlmostEqual(calc_error_rate([], "hello"), 1.0)
 
 
 if __name__ == '__main__':

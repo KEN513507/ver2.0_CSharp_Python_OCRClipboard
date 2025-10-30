@@ -7,7 +7,7 @@ env:
 
 # テスト全部走らせる
 test:
-	PYTHONPATH=src/python python ocr_app/main.py && pytest --maxfail=1 --disable-warnings -q
+	python ocr_app/main.py && pytest --maxfail=1 --disable-warnings -q
 
 # freezeしてrequirements.txt更新
 freeze:

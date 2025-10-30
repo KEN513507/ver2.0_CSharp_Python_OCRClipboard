@@ -1,6 +1,16 @@
 import tkinter as tk
 import mss
-import pyautogui
+
+try:
+    import pyautogui  # noqa: F401  # imported for side-effects/use in production
+except ImportError:  # pragma: no cover - fallback path for test environments without pyautogui
+    class _PyAutoGuiStub:
+        """Fallback stub so module import succeeds in headless test environments."""
+
+        def __getattr__(self, name):
+            raise ImportError("pyautogui is required for selector operations") from None
+
+    pyautogui = _PyAutoGuiStub()  # type: ignore
 
 def select_capture_area(display=1):
     screen = mss.mss().monitors[display]
