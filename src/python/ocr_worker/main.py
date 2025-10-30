@@ -57,7 +57,7 @@ def run_ocr():
     image_np = np.array(screenshot)
 
     # PaddleOCR初期化
-    ocr = PaddleOCR(use_angle_cls=True, lang='japan', use_gpu=False)
+    ocr = PaddleOCR(use_angle_cls=True, lang='japan')
 
     start = time.time()
     result = ocr.ocr(image_np, cls=True)
