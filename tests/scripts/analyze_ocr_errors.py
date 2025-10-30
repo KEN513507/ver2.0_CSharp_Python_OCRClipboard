@@ -147,13 +147,13 @@ def print_analysis_report(analysis: Dict):
     print(f"  Total Tests: {analysis['total_tests']}")
     print(f"  Passed: {analysis['passed_tests']}")
     print(f"  Failed: {analysis['failed_tests']}")
-    print(".1f")
+    print(f"  Success Rate: {analysis.get('passed_tests', 0) / analysis.get('total_tests', 1) * 100:.1f}%")
 
     print(f"\nScale Performance:")
     for scale, perf in analysis['scale_performance'].items():
         print(f"  {scale}: {perf['passed']}/{perf['total']} passed "
-              ".1f"
-              ".1f")
+              f"(Success: {perf['success_rate'] * 100:.1f}%, "
+              f"Avg Error: {perf['avg_error_distance']:.1f}, Avg Conf: {perf['avg_confidence']:.2f})")
 
     if analysis['common_errors']:
         print(f"\nMost Common Character Errors:")

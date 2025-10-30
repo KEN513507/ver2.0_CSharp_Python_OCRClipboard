@@ -1,5 +1,5 @@
 import unittest
-from src.python.ocr_worker.utils import merge_text_boxes, calculate_bbox_area, is_bbox_valid, normalize_bbox_coordinates
+from ocr_worker.utils import calculate_bbox_area, is_bbox_valid, normalize_bbox_coordinates, merge_text_boxes
 
 
 class TestBbox(unittest.TestCase):

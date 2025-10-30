@@ -1,9 +1,10 @@
-# OCR Clipboard v2.0 開発仕様
+python -m unittest discover# OCR Clipboard v2.0 開発仕様
 
 ## 概要
 - C#（WinUI3）＋Pythonの二層構成
-- 10秒以内・誤差≤4文字の品質制約
+- 10秒以内・誤差≤3文字の品質制約（強化）
 - テスト画像セット（A1〜E1）・期待語句は test_cases.json に準拠
+- プライマリ画面のみ対応（セカンダリ画面は今後検討）
 
 ---
 

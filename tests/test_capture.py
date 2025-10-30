@@ -1,6 +1,8 @@
+
+
 import unittest
 from unittest.mock import Mock, patch, MagicMock
-from src.python.ocr_worker.utils import merge_text_boxes
+from ocr_worker.utils import merge_text_boxes
 
 
 class TestCapture(unittest.TestCase):

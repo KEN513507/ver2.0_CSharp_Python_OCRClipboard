@@ -1,3 +1,15 @@
+
+## 本番直前チェックリスト（2025-10-30）
+
+- `pip list --outdated` で非互換アップデートに注意
+- `pip freeze > requirements.txt` で依存ファイルを最新化
+- `pipdeptree` で依存関係のねじれ・重複を確認
+- `pytest` で最低限のユニット・統合テストを実行
+- `gh workflow run` でGitHub ActionsのCIが正常稼働するか確認
+- `git log --oneline --graph` でマージ/リベース履歴の破綻がないか確認
+- 本番環境で `docker-compose run` など仮想テストを行い、環境差異・DLL・DPI問題を排除
+
+---
 dotnet run --project src/csharp/OCRClipboard.App
 
 OCR Clipboard v2.0  IPC Skeleton
@@ -61,9 +73,19 @@ Notes
 ## OCR機能について
 
 - **現状はプライマリ画面のみ対応、セカンダリ画面は今後検討予定。**
-- OCR精度向上のため、画像前処理（リサイズ・ノイズ除去・適応的閾値処理）と品質判定（文字誤差5文字以内、信頼度0.8以上）を導入。
-- 品質判定に不合格の場合、ログに誤差情報を出力。
-- OCRエンジンとしてyomitokuを使用し、認識結果の誤差パターンを分析可能。
+- OCR精度向上のため、画像前処理（リサイズ・ノイズ除去・適応的閾値処理・エッジ強調）と品質判定（文字誤差3文字以内、信頼度0.85以上）を導入。
+- 品質判定に不合格の場合、ログに誤差情報を出力（置換・削除・挿入パターンを詳細分析）。
+- OCRエンジンとしてyomitokuを使用（10秒タイムアウト、PaddleOCRフォールバック）。
 - テストパターン・実画像でのOCR精度検証は100%/125%/150%スケールで実施。
+
+## 本番直前チェックリスト
+
+- pip list --outdated を確認し、非互換アップデートに注意
+- pip freeze > requirements.txt を最新化したか？
+- pipdeptree で依存のねじれを確認したか？
+- pytest で最低限のユニット・統合テストを実行したか？
+- gh workflow run で GitHub Actions が生きてるか試したか？
+- git log --oneline --graph でマージ/リベースに破綻がないか？
+- 本番環境で docker-compose run など仮想テストを行ったか？
 
 ---

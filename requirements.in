@@ -1,0 +1,9 @@
+paddleocr==3.3.1
+paddlepaddle==3.2.0
+transformers==4.57.1
+pytest==8.4.2
+pipdeptree==2.29.0
+# requirements.in - メイン依存のみ記載（人間管理用）
+ 
+mss
+pyperclip

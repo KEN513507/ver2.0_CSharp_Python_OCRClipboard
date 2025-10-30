@@ -7,38 +7,6 @@ import re
 from typing import List
 
 
-def merge_text_boxes(boxes: List[List[int]]) -> List[List[int]]:
-    """
-    Merge overlapping or adjacent text bounding boxes.
-    Assumes boxes are in format [x1, y1, x2, y2].
-    Merges boxes that overlap or are within 5 pixels of each other.
-    """
-    if not boxes:
-        return []
-
-    # Sort boxes by x1 coordinate
-    sorted_boxes = sorted(boxes, key=lambda b: b[0])
-
-    merged = [sorted_boxes[0]]
-
-    for box in sorted_boxes[1:]:
-        last = merged[-1]
-
-        # Check if boxes overlap or are adjacent (within 5 pixels)
-        if box[0] <= last[2] + 5 and box[2] >= last[0] - 5:
-            # Merge: take min x1, min y1, max x2, max y2
-            merged[-1] = [
-                min(last[0], box[0]),
-                min(last[1], box[1]),
-                max(last[2], box[2]),
-                max(last[3], box[3])
-            ]
-        else:
-            merged.append(box)
-
-    return merged
-
-
 def clean_text(text: str) -> str:
     """
     Clean and normalize OCR text.
@@ -89,9 +57,54 @@ def normalize_bbox_coordinates(bbox: List[int], image_width: int, image_height: 
     if not is_bbox_valid(bbox):
         return [0.0, 0.0, 0.0, 0.0]
 
+    if image_width == 0 or image_height == 0:
+        return [0.0, 0.0, 0.0, 0.0]
+
     return [
         bbox[0] / image_width,
         bbox[1] / image_height,
         bbox[2] / image_width,
         bbox[3] / image_height
     ]
+
+
+def merge_text_boxes(boxes: List[List[int]]) -> List[List[int]]:
+    """
+    Merge intersecting or adjacent bounding boxes.
+    Boxes are in format [x1, y1, x2, y2].
+    Merges boxes that overlap or touch.
+    """
+    if not boxes:
+        return []
+
+    boxes = [list(b) for b in boxes]  # copy to avoid modifying original
+
+    while True:
+        merged_any = False
+        i = 0
+        while i < len(boxes):
+            j = i + 1
+            while j < len(boxes):
+                if _boxes_intersect(boxes[i], boxes[j]):
+                    boxes[i] = _union_boxes(boxes[i], boxes[j])
+                    del boxes[j]
+                    merged_any = True
+                else:
+                    j += 1
+            i += 1
+        if not merged_any:
+            break
+
+    return boxes
+
+
+def _boxes_intersect(b1: List[int], b2: List[int]) -> bool:
+    """Check if two boxes intersect (including touching)."""
+    return (b1[2] >= b2[0] and b1[0] <= b2[2] and
+            b1[3] >= b2[1] and b1[1] <= b2[3])
+
+
+def _union_boxes(b1: List[int], b2: List[int]) -> List[int]:
+    """Return the union of two boxes."""
+    return [min(b1[0], b2[0]), min(b1[1], b2[1]),
+            max(b1[2], b2[2]), max(b1[3], b2[3])]
