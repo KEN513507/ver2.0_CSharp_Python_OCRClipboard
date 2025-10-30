@@ -1,0 +1,7 @@
+paddleocr
+paddlepaddle
+mss
+pyautogui
+tkinter
+pyperclip
+opencv-python
