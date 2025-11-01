@@ -7,6 +7,8 @@ namespace OCRClipboard.App;
 
 public partial class Program
 {
+    private static readonly OcrPerformanceMonitor _monitor = new();
+
     public static async Task Main(string[] args)
     {
         Console.WriteLine("[C#] Starting Python worker and launching overlay...");
@@ -33,21 +35,40 @@ public partial class Program
         {
             SaveDebugCapture(selection.Value.imageBase64);
 
+            // SLA guard: テキスト長を予測して自動分割判定
+            // TODO: 実際の画像解析でテキスト長を推定する必要あり
+            // ここではダミーで500文字と仮定（実装時は画像から推定）
+            int estimatedChars = 500; // 画像解析から推定値を取得
+
+            if (_monitor.ExceedsSla(estimatedChars))
+            {
+                Console.WriteLine($"[C#] ⚠️ SLA exceeded prediction: {estimatedChars} chars → {_monitor.PredictProcessingTime(estimatedChars):F1}ms > 400ms");
+                Console.WriteLine("[C#] Auto-splitting recommended. Proceeding with single request for now.");
+            }
+
             var req = new OcrRequest
             {
                 Language = "eng",
                 Source = "imageBase64",
                 ImageBase64 = selection.Value.imageBase64
             };
-            var ocr = await client.CallAsync<OcrResponse>(
-                type: "ocr.perform",
-                payload: req,
-                CancellationToken.None);
+            
+            // OCR実行 + モニタリング
+            var ocr = await _monitor.MeasureAsync(
+                estimatedChars,
+                async () => await client.CallAsync<OcrResponse>(
+                    type: "ocr.perform",
+                    payload: req,
+                    CancellationToken.None));
+
             Console.WriteLine($"[C#] OCR Text: '{ocr?.Text}' (conf={ocr?.Confidence})");
             if (!string.IsNullOrEmpty(ocr?.Text))
             {
                 TrySetClipboardText(ocr!.Text);
             }
+
+            // モニタリングレポート出力
+            Console.WriteLine(_monitor.GenerateReport());
         }
 
         await host.StopAsync();
