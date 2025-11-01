@@ -1,7 +1,7 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using OCRClipboard.App.Ipc;
-using OCRClipboard.App.Dto;
+using System.Diagnostics;
+using System.Drawing;
+using System.Threading;
+using Ocr;
 
 namespace OCRClipboard.App;
 
@@ -9,48 +9,72 @@ public partial class Program
 {
     public static async Task Main(string[] args)
     {
-        Console.WriteLine("[C#] Starting Python worker and launching overlay...");
+        Console.WriteLine("[C#] Starting Windows.Media.Ocr engine...");
 
-        using var host = new PythonProcessHost(
-            pythonExe: "python",
-            module: "ocr_worker.main",
-            workingDirectory: Directory.GetCurrentDirectory());
+        var engine = new WindowsMediaOcrEngine();
 
-        await host.StartAsync();
-
-        var client = new JsonRpcClient(host);
-
-        // Health check
-        var health = await client.CallAsync<HealthOk>(
-            type: "health.check",
-            payload: new HealthCheck { Reason = "startup" },
-            CancellationToken.None);
-        Console.WriteLine($"[C#] Health OK: {health?.Message}");
+        var totalWatch = Stopwatch.StartNew();
+        var captureWatch = Stopwatch.StartNew();
 
         // Launch overlay selection window (single monitor, monitor-local physical coords)
         var selection = await OCRClipboard.Overlay.OverlayRunner.RunSelectionCaptureAsync();
+        captureWatch.Stop();
+
         if (selection != null)
         {
             SaveDebugCapture(selection.Value.imageBase64);
 
-            var req = new OcrRequest
+            // Base64 → Bitmap
+            var imageBytes = Convert.FromBase64String(selection.Value.imageBase64);
+            using var ms = new System.IO.MemoryStream(imageBytes);
+            using var bitmap = new Bitmap(ms);
+
+            OcrResult? ocrResult = null;
+            try
             {
-                Language = "eng",
-                Source = "imageBase64",
-                ImageBase64 = selection.Value.imageBase64
-            };
-            var ocr = await client.CallAsync<OcrResponse>(
-                type: "ocr.perform",
-                payload: req,
-                CancellationToken.None);
-            Console.WriteLine($"[C#] OCR Text: '{ocr?.Text}' (conf={ocr?.Confidence})");
-            if (!string.IsNullOrEmpty(ocr?.Text))
+                ocrResult = await engine.RecognizeAsync(bitmap);
+            }
+            catch (Exception ex)
             {
-                TrySetClipboardText(ocr!.Text);
+                Console.Error.WriteLine($"[C#] OCR failed: {ex}");
+                return;
+            }
+            totalWatch.Stop();
+
+            var timings = ocrResult.Timings;
+            var captureMs = captureWatch.Elapsed.TotalMilliseconds;
+            var preprocMs = timings?.PreprocessMilliseconds ?? ocrResult.Elapsed.TotalMilliseconds;
+            var inferMs = timings?.InferenceMilliseconds ?? 0;
+            var postprocMs = timings?.PostprocessMilliseconds ?? 0;
+            var totalMs = totalWatch.Elapsed.TotalMilliseconds;
+
+            // [PERF] ログ出力
+            Console.WriteLine(
+                "[PERF] capture={0:F0}ms preproc={1:F0}ms infer={2:F0}ms postproc={3:F0}ms total={4:F0}ms",
+                captureMs,
+                preprocMs,
+                inferMs,
+                postprocMs,
+                totalMs);
+            Console.WriteLine(
+                "[OCR] n_fragments={0} mean_conf={1:F2} min_conf={2:F2}",
+                ocrResult.FragmentCount,
+                ocrResult.MeanConfidence,
+                ocrResult.MinConfidence);
+
+            var combinedText = ocrResult.CombinedText;
+            Console.WriteLine($"[C#] OCR Text: '{combinedText}'");
+            if (!string.IsNullOrEmpty(combinedText))
+            {
+                TrySetClipboardText(combinedText);
+                var preview = combinedText.Length <= 40
+                    ? combinedText
+                    : combinedText[..40];
+                Console.WriteLine($"[CLIPBOARD] {preview}");
             }
         }
 
-        await host.StopAsync();
+        totalWatch.Stop();
         Console.WriteLine("[C#] Done.");
     }
 }

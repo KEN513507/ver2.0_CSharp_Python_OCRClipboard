@@ -1,105 +1,18 @@
-# 再利用可能な資産インデックス
+# Salvage Index
 
-## 概要
-このディレクトリは、**PaddleOCR版プロジェクト終了時にサルベージした設計パターン・知見集**です。  
-次回の OCR プロジェクトや画像処理プロジェクトで即座に流用できる部品を保管しています。
+| カテゴリ | ファイル/ディレクトリ | 説明 |
+|----------|-----------------------|------|
+| テスト | `tests/conftest.py` | autouse モック (tkinter/mss/OCR) の C# 移植参考用 Python 版。 |
+|         | `tests/test_quality_config.py` | QualityConfig を環境変数で切り替えるテストパターン。 |
+|         | `tests/test_worker_main.py` | stdin JSON ハンドリングの検証例。 |
+| 品質 | `python/quality_config.py` | QualityConfig + normalize_text の原典。 |
+| ログ | `notes/perf_logging.md` | `[PERF]` / `[OCR]` ログの書式。 |
+| キャプチャ | `capture/mss_threading_pattern.md` | mss での with 使い捨て + フォールバック設計。 |
+| Slow 分離 | `tests/slow_test_pattern.md` | pytest slow → xUnit Category 変換メモ。 |
 
----
-
-## 📁 capture/ — 画面キャプチャの堅牢化
-
-| ファイル | 内容 | 適用場面 |
-|---------|------|---------|
-| `mss_threading_pattern.md` | mss スレッドセーフパターン + PIL フォールバック + DPI awareness | WPF/WinUI3 での画面キャプチャ、マルチスレッドUI |
-
-**キーポイント**:
-- `with mss.mss()` で毎回生成・使い捨て（`_thread._local` 事故防止）
-- `PIL.ImageGrab` への自動フォールバック（クラウド環境対応）
-- `SetProcessDpiAwareness(2)` で座標ズレ抑制
-
----
-
-## 📁 tests/ — テスト戦略
-
-| ファイル | 内容 | 適用場面 |
-|---------|------|---------|
-| `slow_test_pattern.md` | pytest slow マーク分離 + autouse モック | CI 高速化、重量テストの選択実行 |
-
-**キーポイント**:
-- `addopts = -m "not slow"` でデフォルト除外
-- `conftest.py` の `autouse=True` で重依存を自動モック化
-- **CI 実行時間を 90%以上削減**（90秒→0.1秒）
-
----
-
-## 📁 quality/ — 品質判定ヒューリスティック
-
-| ファイル | 内容 | 適用場面 |
-|---------|------|---------|
-| `heuristic_validation.md` | Levenshtein距離 + 記号比率 + 長さ比による品質判定 | Windows.Media.Ocr など**スコアレスOCR** |
-
-**キーポイント**:
-- **誤差許容**: 原文の 25% かつ ≤20 文字
-- **記号比率ガード**: 30% 超で誤検出と判定
-- **長さ比チェック**: OCR 結果が原文の 50% 未満で不完全判定
-- **正規化**: NFKC + 大文字小文字統一後に判定
-
----
-
-## 📁 logs/ — パフォーマンス計測
-
-| ファイル | 内容 | 適用場面 |
-|---------|------|---------|
-| `performance_log_format.md` | `[PERF]` / `[OCR]` ログ書式 + 集計スクリプト | ボトルネック特定、リグレッション検出 |
-
-**キーポイント**:
-- **分解ログ**: `capture=45ms preproc=12ms infer=823ms postproc=8ms total=888ms`
-- **OCR サマリ**: `n_fragments=3 mean_conf=0.87 min_conf=0.72`
-- stderr 出力（人間向け）と stdout JSON（機械向け）の分離
-
----
-
-## 📁 python/ — IPC・入出力パターン（参考）
-
-| ファイル | 内容 | 備考 |
-|---------|------|------|
-| `quality_config.py` | 環境変数オーバーライド + frozen dataclass | 削除済み（設計パターンのみ参照） |
-
-**教訓**:
-- stdin ループは空行・`JSONDecodeError` をスキップして継続
-- 人間向け stderr、機械向け stdout(JSON) の出力分離
-- ウォームアップ（ダミー推論）は定石だが、**ボトルネックがモデルサイズなら効果薄**
-
----
-
-## 教訓（短く痛く）
-
-### ✅ 再利用価値あり
-- **mss 使い捨て + PIL フォールバック** — どんな環境でも落ちないキャプチャ
-- **slow マーク分離** — CI 実行時間を 90% 削減
-- **品質ヒューリスティック** — スコアレス OCR でも最低限の品質保証
-- **分解ログ書式** — ボトルネック特定の定石
-
-### ❌ 失敗から学んだこと
-- **モバイル U 系 CPU で巨大 OCR は現実的でない** — 初回 90 秒、2 回目 80 秒
-- **モデル切替 API は事前検証必須** — mobile/server の指定方法が不明瞭で失敗
-- **常駐化だけでは救えない** — ボトルネックがモデルサイズなら、温めても牛は速く走らない
-- **要件に合う土俵を選ぶ** — Windows.Media.Ocr なら <1 秒、PaddleOCR は 80 秒
-
----
-
-## 次回の推奨構成
-
-**C# 単独 + Windows.Media.Ocr で 100 行以内**:
-1. WPF で矩形選択
-2. `Windows.Graphics.Capture` で画面キャプチャ
-3. `Windows.Media.Ocr.OcrEngine` で日本語 OCR
-4. クリップボードにコピー
-
-**PaddleOCR は不要。軽い・速い・OS 統合済み。**
-
----
-
-## ライセンス・クレジット
-本サルベージ資産は MIT License で公開。  
-元プロジェクトの PaddleOCR 依存（Apache-2.0）は削除済み。
+C# 版は以下のディレクトリで再構成済み：
+- `src/Infra/PerfLogger.cs`
+- `src/Quality/QualityConfig.cs`
+- `src/Quality/OcrQualityEvaluator.cs`
+- `src/Ocr/FakeOcrEngine.cs`
+- `tests/Common/*.cs`, `tests/Quality/*.cs`, `tests/Ocr/*.cs`

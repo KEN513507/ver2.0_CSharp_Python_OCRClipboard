@@ -36,14 +36,22 @@ public sealed class PythonProcessHost : IDisposable
             WorkingDirectory = _workingDirectory,
         };
 
-        // Ensure Python can find src/python
-        var pythonPath = Path.Combine(_workingDirectory, "src", "python");
-        if (Directory.Exists(pythonPath))
+        // Ensure Python can find src/python and ocr-screenshot-app
+        var paths = new List<string>
         {
+            ".",  // Repository root
+            Path.Combine(_workingDirectory, "src", "python"),
+            Path.Combine(_workingDirectory, "ocr-screenshot-app")
+        };
+        
+        var validPaths = paths.Where(Directory.Exists).ToList();
+        if (validPaths.Any())
+        {
+            var pythonPathValue = string.Join(Path.PathSeparator.ToString(), validPaths);
             if (start.Environment.ContainsKey("PYTHONPATH"))
-                start.Environment["PYTHONPATH"] = start.Environment["PYTHONPATH"] + Path.PathSeparator + pythonPath;
+                start.Environment["PYTHONPATH"] = pythonPathValue + Path.PathSeparator + start.Environment["PYTHONPATH"];
             else
-                start.Environment["PYTHONPATH"] = pythonPath;
+                start.Environment["PYTHONPATH"] = pythonPathValue;
         }
 
         _proc = new Process { StartInfo = start, EnableRaisingEvents = true };
