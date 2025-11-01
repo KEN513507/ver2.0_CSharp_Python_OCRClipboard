@@ -1,7 +1,9 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Ocr;
@@ -15,12 +17,12 @@ public sealed class WorkerTests
     [Fact]
     public async Task InvalidJsonAndValidRequest_AreReportedSeparately()
     {
-        var tempImage = Path.GetTempFileName();
+        var tempImage = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
         using (var bmp = new Bitmap(10, 10))
         {
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.White);
-            bmp.Save(tempImage);
+            bmp.Save(tempImage, ImageFormat.Png);
         }
 
         var originalIn = Console.In;
@@ -40,8 +42,23 @@ public sealed class WorkerTests
             await worker.RunAsync(CancellationToken.None);
 
             var output = stdout.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-            Assert.Contains(output, l => l.Contains("\"success\":false"));
-            Assert.Contains(output, l => l.Contains("\"success\":true"));
+            var hasError = false;
+            var hasSuccess = false;
+
+            foreach (var line in output)
+            {
+                using var doc = JsonDocument.Parse(line);
+                if (!doc.RootElement.TryGetProperty("success", out var successProperty))
+                    continue;
+
+                if (successProperty.GetBoolean())
+                    hasSuccess = true;
+                else
+                    hasError = true;
+            }
+
+            Assert.True(hasError, "Expected at least one worker response with success=false.");
+            Assert.True(hasSuccess, "Expected at least one worker response with success=true.");
         }
         finally
         {
