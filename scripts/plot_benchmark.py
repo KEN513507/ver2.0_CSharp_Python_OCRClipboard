@@ -1,11 +1,29 @@
 """
 OCR処理時間 vs 文字数のベンチマーク結果をグラフ化
 実行: python scripts/plot_benchmark.py
+
+【目的】
+Windows.Media.Ocrの処理時間が文字数に対して線形に増加するか検証。
+TECHNICAL_LIMITS.mdの「文字数が増えると処理時間が線形に増加するだけ」という主張を実測データで証明。
+
+【検証方法】
+1. 異なる文字数（50〜1000文字）の画像を自動生成
+2. 各文字数で3回OCR実行して平均値を取得
+3. 線形回帰で近似し、決定係数R²で線形性を評価
+4. 文字あたりの処理コスト（ms/文字）を可視化
+
+【評価基準】
+- R² > 0.95: ほぼ完全な線形
+- R² > 0.85: おおむね線形（実用上問題なし）
+- R² < 0.85: 非線形要素が支配的
 """
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib
+matplotlib.rc('font', family='Yu Gothic')  # 日本語フォント設定
 
 # ベンチマーク実測データ (2025-11-01)
+# (文字数, fragments数, OCR処理時間ms)
 data = [
     (50, 46, 69.9),
     (100, 94, 81.0),
