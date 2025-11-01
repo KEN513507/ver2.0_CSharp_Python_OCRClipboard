@@ -1,161 +1,151 @@
-# OCR Clipboard v2.0 (Archived)
+# OCR Clipboard v2.0（Windows.Media.Ocr 版）
 
-**現在のブランチ**: `archive/paddle-to-wm-ocr` (アーカイブ専用)  
-**GitHub リポジトリ**: [KEN513507/ver2.0_CSharp_Python_OCRClipboard](https://github.com/KEN513507/ver2.0_CSharp_Python_OCRClipboard)  
-**タグ**: `v2-archive` — PaddleOCR 版の終了記録
-
-このリポジトリは Windows.Media.Ocr ベースの新構成へ移行するためアーカイブ済みです。Python + PaddleOCR で得た知見は `salvage/` と C# のテンプレートコードに集約しました。
+Windows デスクトップで「範囲選択 → OCR → クリップボード」を高速に行う C#/.NET 8 プロジェクトです。旧 PaddleOCR（Python）構成は撤去済みで、`salvage/` 以下に資料として保管しています。現行コードは **Windows.Media.Ocr を利用した C# 単独構成** を前提とします。
 
 ---
 
-## プロジェクト概要
+## 1. 実装ステータス
 
-### 開発企画
-**目的**: 画面範囲選択 → OCR → クリップボード自動コピー（デスクトップアイコン起動）  
-**要件**: 2回目以降のOCRを **2-3秒以内** で完了（初回は遅くても許容）
-
-### 終了理由
-**PaddleOCR 版の性能不足**:
-- 目標: 2-3秒 / 実測: 初回90秒、2回目以降80秒（**40倍遅い**）
-- CPU制約: i7-8550U（モバイルU系）では大型モデルの高速化不可能
-- 結論: Windows.Media.Ocr（<1秒）への全面移行
-
-### ハードウェア要件
-| 項目 | 要件 | 備考 |
+| 区分 | 内容 | 状態 |
 |------|------|------|
-| **OS** | Windows 10 1809+ | Windows.Media.Ocr API 必須 |
-| **CPU** | 任意（U系でもOK） | Windows OCR は軽量、GPU不要 |
-| **RAM** | 4GB以上推奨 | .NET 8 + WPF 動作環境 |
-| **ディスプレイ** | プライマリ1枚 | マルチディスプレイ未対応 |
-| **DPI** | 100% 推奨 | スケーリング対応は今後 |
+| コアアプリ | `OCRClipboard.App`（WPF オーバーレイ + Windows.Media.Ocr + クリップボード） | ✅ 動作中 |
+| ライブラリ | `Ocr` / `Quality` / `Infra` / `Worker` | ✅ 利用可能 |
+| テスト | `tests/OCRClipboard.Tests`（xUnit Fast テスト） | ✅ 実行可 |
+| 自動チェックスクリプト | `scripts/run_dev_checks.ps1` | ✅ restore → build → format → test → typos |
+| Python ワーカー | `start_ocr_worker.cmd` など | ❌ **コードなし**（旧構成の残骸） |
+| 常駐 / ホットキー | NotifyIcon, RegisterHotKey | ❌ 未実装 |
+| 品質判定配線 | CER/Accuracy を OCR 結果に反映 | ⚠️ ロジックのみ存在（未配線） |
 
-### バイナリ配布（予定）
-- **実行ファイル**: `OCRClipboard.exe`（単一実行ファイル、self-contained）
-- **サイズ**: ~15MB（.NET 8 Runtime 内包）
-- **依存**: なし（Python・PaddleOCR 完全削除済み）
-- **起動**: デスクトップアイコン → 常駐トレイ → ホットキーで範囲選択
+> **注意**: `start_ocr_worker.cmd` や `src/python/**` は現在のビルドでは利用されません。触らず残してください（歴史的資料）。
 
 ---
 
-## 要件定義（確定版）
+## 2. 合意済み要件
 
-### 機能要件
-| ID | 要件 | 優先度 | 状態 |
-|----|------|--------|------|
-| F-1 | デスクトップアイコン起動で常駐トレイ化 | 必須 | 未実装 |
-| F-2 | ホットキー（例: Ctrl+Shift+O）で矩形選択開始 | 必須 | 部分実装（WPF Overlay） |
-| F-3 | 範囲確定後、即座に OCR 実行（<1秒） | 必須 | 未実装（C# エンジン未統合） |
-| F-4 | OCR 結果を自動的にクリップボードへコピー | 必須 | 未実装 |
-| F-5 | トレイアイコンから手動終了 | 推奨 | 未実装 |
-| F-6 | OCR 精度の品質判定（Levenshtein 25%/20文字） | 任意 | テンプレート実装済み |
+### 機能要件（F）
 
-### 非機能要件
-| ID | 要件 | 測定方法 | 状態 |
-|----|------|----------|------|
-| NF-1 | 2回目以降の OCR を 2-3秒以内で完了 | `[PERF]` ログ | Windows.Media.Ocr で達成見込み |
-| NF-2 | Display 1（プライマリ）で正確な座標取得 | DPI awareness 有効化 | WPF 側実装済み |
-| NF-3 | バイナリサイズ 20MB 以下 | 実行ファイル計測 | 未計測 |
-| NF-4 | メモリ使用量 100MB 以下（常駐時） | タスクマネージャー | 未計測 |
+- **F-1 常駐**: トレイ常駐 & 高速状態維持（未実装）
+- **F-2 ホットキー**: グローバルホットキーで矩形選択→OCR→クリップボード（未実装）
+- **F-3 速度**: 2回目以降 `proc_total` < 1 秒（実測 0.3 秒前後で達成）
+- **F-4 クリップボード**: OCR 成功時に自動コピー / 失敗時は未コピー（実装済み）
+- **F-5 終了**: トレイメニュー等で安全に終了（未実装）
+- **F-6 品質**: Levenshtein ≤ min(⌈0.25×文字数⌉, 20) かつ mean_conf ≥ 0.7（ロジックのみ）
 
-### 非要件（対応しない範囲）
-- ❌ マルチディスプレイ（Display 2以降）の正確な座標補正
-- ❌ DPI 125%/150% での完全動作保証（100%のみ対応）
-- ❌ GPU 高速化（Windows.Media.Ocr は CPU のみで十分高速）
-- ❌ オフライン大型モデル（PaddleOCR 等）のランタイム統合
+### 非機能要件（NF）
+
+- **NF-1**: 冷スタート除き `proc_total` < 1 秒（ログ証跡あり）
+- **NF-2**: Display 1 / DPI 100% 専用（実測 OK）
+- **NF-3**: 配布バイナリ < 20MB（未計測）
+- **NF-4**: 常駐メモリ < 100MB（未計測）
+
+非要件: Display 2 以降、DPI 125%/150%、GPU/大型モデル、Python 連携。
 
 ---
 
-## 現在の方針
-- **本番実行は C# 単独**（Windows.Media.Ocr、矩形選択→OCR→クリップボードで < 1 秒）
-- **Python/PaddleOCR は廃止**。重いモデルを常駐させても CPU（i7-8550U）では 90 秒以上かかるため要件不適合と判断
-- **再利用する資産** は以下に整理済み
-  - `salvage/` … テスト、品質ヒューリスティック、パフォーマンスログ、キャプチャ耐障害パターンのまとめ
-  - `src/Infra/*.cs`, `src/Quality/*.cs`, `src/Ocr/*.cs`, `src/Worker/*.cs` … C# 用テンプレート
-  - `tests/*` … xUnit ベースのテスト雛形（slow 分離、環境変数上書き等）
+## 3. アーキテクチャ概要
 
----
+```
+[ユーザー操作] ─Ctrl+Shift+O?（予定）
+      │
+      ▼
+[OCRClipboard.App]
+  ├─ OverlayWindow (WPF) …… Display1/DPI100% 前提の矩形選択 UI
+  ├─ WindowsMediaOcrEngine …… OCR 実行（約 100–300ms）
+  ├─ PerfLogger ………………… [PERF]/[OCR] ログ出力
+  └─ Clipboard ………………… クリップボード書き込み
 
-## 新しい C# プロジェクトの雛形
+補助ライブラリ：Ocr / Quality / Infra / Worker
+ユニットテスト：tests/OCRClipboard.Tests（Fast テストのみ）
+```
+
+実装ファイルの配置例:
+
 ```
 src/
- ├─ Infra/PerfLogger.cs              # [PERF]/[OCR] ログ整形
- ├─ Quality/QualityConfig.cs         # OCR 品質閾値（環境変数で可変）
- ├─ Quality/OcrQualityEvaluator.cs   # 25% / 20文字以内のヒューリスティック
- ├─ Ocr/IOcrEngine.cs                # OCR エンジンのインターフェース
- ├─ Ocr/OcrResult.cs, OcrFragment.cs # OCR 結果のラッパー
- ├─ Ocr/FakeOcrEngine.cs             # テスト用フェイク
- └─ Worker/Worker.cs                 # stdin→stdout の簡易ワーカー例
+ ├─ csharp/OCRClipboard.App/Program.cs        # エントリーポイント
+ ├─ Ocr/WindowsMediaOcrEngine.cs              # OCR エンジン
+ ├─ Quality/OcrQualityEvaluator.cs            # 品質ヒューリスティック
+ └─ Infra/PerfLogger.cs                       # PERF/OCR ログ
 
-tests/
- ├─ Common/SlowOcrAttribute.cs       # Category("SlowOCR")
- ├─ Common/ConfigOverrideFixture.cs  # 環境変数上書き
- ├─ Quality/QualityEvaluatorTests.cs # 品質判定のユニットテスト
- ├─ Ocr/WorkerTests.cs               # stdin JSON 耐性テスト
- └─ Slow/WindowsMediaOcrIntegrationTests.cs (TODO)
+tests/OCRClipboard.Tests/
+ ├─ OcrResultTests.cs                         # CombinedText 等の確認
+ ├─ OcrQualityEvaluatorTests.cs               # 品質ロジックのユニットテスト
+ └─ WorkerTests.cs                            # JSON 入力の耐性テスト
 ```
 
-## Salvage ディレクトリ
-Python 版から抜き出した再利用素材。詳細は `salvage/SALVAGE_INDEX.md` を参照。
+---
 
-| 分類 | ファイル | 説明 |
-|------|----------|------|
-| テスト | `salvage/tests/conftest.py` | autouse モック (tkinter/mss/PaddleOCR) の原典 |
-| 品質 | `salvage/python/quality_config.py` | 品質閾値クラスの Python 版 |
-| ログ | `salvage/notes/perf_logging.md` | [PERF]/[OCR] ログ書式メモ |
-| キャプチャ | `salvage/capture/mss_threading_pattern.md` | 1回ごと with + フォールバック |
-| slow 分離 | `salvage/tests/slow_test_pattern.md` | pytest → xUnit カテゴリ移行メモ |
+## 4. 使い方
 
-## 既知の教訓（PaddleOCR 版の失敗から）
-- **モバイル U 系 CPU + PaddleOCR**: 初回 90 秒、2 回目 80 秒で実用にならない
-- **モデル API の不安定性**: mobile/server 切り替え方法が頻繁に変わり、事前固定が必須だった
-- **常駐化の限界**: モデルサイズが支配的で、ウォームアップしても速度改善は限定的
-- **正しい選択**: 今回の要件は Windows.Media.Ocr（<1秒、GPU不要）で十分満たせる
+### 4.1 開発者向けショートカット
+
+```pwsh
+Remove-Item alias:gp -Force  # PowerShell 既定 gp (Get-ItemProperty) を削除
+. .\scripts\ps_aliases.ps1   # gs / gp / check を読み込み
+
+# 一括チェック: restore → build → dotnet format → dotnet test → typos
+check
+# Slow テストを含める: check -IncludeSlow
+# フォーマットだけ確認: dotnet format "ver2.0_C#+Python_OCRClipboard.sln"
+```
+
+### 4.2 アプリ実行
+
+```pwsh
+# 通常実行（オーバーレイモード）
+dotnet run --project src\csharp\OCRClipboard.App
+
+# 画像ファイルテスト（実際のスクリーンショットでOCR性能検証）
+dotnet run --project src\csharp\OCRClipboard.App -- --test-image test_images/sample.png
+dotnet run --project src\csharp\OCRClipboard.App -- --test-image test_images/sample.png test_images/sample.txt
+```
+
+**📸 画像ファイルテストの詳細:**
+- 実際のWebページや文書のスクリーンショットでOCR性能を検証
+- 5回実行による統計分析（平均/最小/最大時間・精度）
+- H0仮説検定（識字率 >= 95% かつ 処理時間 < 10秒）
+- **完全ガイド:** [docs/IMAGE_TEST_GUIDE.md](docs/IMAGE_TEST_GUIDE.md)
+
+実行時には `[タイミング分析]` と `[PERF]` 行で処理時間を、`[OCR]`/`[CLIPBOARD]` で認識結果を確認できます。ログ例は `src/csharp/OCRClipboard.App/logs/` に保存されます。
 
 ---
 
-## GitHub 設定・ブランチ戦略
+## 5. CI/CD
 
-### リポジトリ情報
-- **リポジトリ**: `KEN513507/ver2.0_CSharp_Python_OCRClipboard`
-- **デフォルトブランチ**: `main`（新実装用）
-- **現在のブランチ**: `archive/paddle-to-wm-ocr`（アーカイブ専用、マージ不可）
-- **タグ**: `v2-archive`（PaddleOCR 版の終了記録）
-
-### ブランチ運用
-| ブランチ | 用途 | 状態 |
-|----------|------|------|
-| `main` | Windows.Media.Ocr 版の開発 | 今後実装 |
-| `archive/paddle-to-wm-ocr` | PaddleOCR 版の保存 | 読み取り専用 |
-| `feature/*` | 新機能開発 | 今後作成 |
-| `hotfix/*` | 緊急修正 | 今後作成 |
-
-### CI/CD（実装済み）
-
-**ビルド検証** (`.github/workflows/build.yml`):
-- トリガー: すべてのpush/PR
-- 実行内容: `dotnet restore` + `dotnet build --configuration Release`
-- 制限: テスト実行不可（Windows.Media.OcrがServer 2022非対応）
-
-**リリース自動化** (`.github/workflows/release.yml`):
-- トリガー: `v*.*.*` タグpush
-- 成果物: 単一実行ファイル（self-contained, PublishSingleFile）
-- 配布: GitHub Releases自動公開
-
-**実機テスト**:
-- Slowテスト（`Category=SlowOCR`）は手動実行のみ
-- CI対応にはSelf-hosted Runner（Windows 10 + 日本語OCRパック）が必要
-
-詳細: `docs/CI_CD_STRATEGY.md`
+- **Build Validation** (`.github/workflows/build.yml`)
+  - `dotnet restore`
+  - `dotnet build --configuration Release --no-restore`
+  - `dotnet format --verify-no-changes`
+  - `dotnet test tests/OCRClipboard.Tests/OCRClipboard.Tests.csproj --filter "Category!=SlowOCR"`
+  - `typos`（Chocolatey で自動導入）
+- **Release** (`.github/workflows/release.yml`)
+  - タグ `v*.*.*` で self-contained バイナリを生成し GitHub Releases に公開
+- SlowOCR テストを自動化するには Windows 10+ の self-hosted runner が必要。詳細は `docs/CI_CD_STRATEGY.md` を参照。
 
 ---
 
-## 次にやること
-1. **C# ソリューションをクリーンに作り直し**、上記テンプレートを取り込む
-2. **Windows.Media.Ocr を統合**（`src/csharp/OCRClipboard.App/Ocr/WindowsOcrEngine.cs`）
-3. **実機テストを整備**（`tests/Slow/WindowsMediaOcrIntegrationTests.cs`、Display 1 固定）
-4. **常駐トレイ化**（ホットキー登録、バックグラウンド起動）
-5. **品質ログ可視化**（`PerfLogger` 出力を集計、閾値チューニング）
+## 6. 既知のギャップ
+
+1. **常駐トレイ & ホットキー**（F-1/F-2/F-5）未実装。`NotifyIcon` + `RegisterHotKey` を組み込む。
+2. **品質判定の配線**（F-6）。`OcrQualityEvaluator` を `Program.cs` へ接続し、CER/Accuracy と `[QUALITY]` ログを出力する。
+3. **バイナリ・メモリ計測**（NF-3/NF-4）。`dotnet publish` とタスクマネージャで数値を取得し README / PROJECT_SPEC に追記する。
+4. **Slow テスト実装**。`tests/Slow/WindowsMediaOcrIntegrationTests` を実装し、手動または self-hosted で検証する。
 
 ---
 
-過去の Python コードが必要になった場合は `salvage/` と Git 履歴から参照できます。
+## 7. 参考情報
+
+- `docs/TECHNICAL_LIMITS.md` … Windows.Media.Ocr の性能測定
+- `docs/BENCHMARK.md` … 文字数と処理時間の相関
+- `docs/DEBUG_MODE.md` … ログ出力を切り替えるデバッグフラグ
+- `salvage/` … 旧 PaddleOCR 版のノウハウ（参考用、ビルド非対象）
+
+過去の Python スクリプトを再利用する予定はありません。`start_ocr_worker.cmd` を実行してもワーカーは起動しない点に注意してください。
+
+---
+
+## 8. 変更履歴
+
+- 2025-11-01: Windows.Media.Ocr 版ドキュメントへ刷新、`check` スクリプト導入、C# テストプロジェクト整備
+
+開発に戻る際は、まず `check` で足元を整えたうえで要件ギャップ（常駐化・品質配線など）を埋めてください。
