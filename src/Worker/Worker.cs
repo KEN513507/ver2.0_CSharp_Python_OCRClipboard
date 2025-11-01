@@ -16,6 +16,11 @@ namespace Worker;
 /// </summary>
 public sealed class Worker
 {
+    private static readonly JsonSerializerOptions RequestJsonOptions = new(JsonSerializerDefaults.General)
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly IOcrEngine _engine;
     private readonly IWorkerEmitter _emitter;
     private readonly ILogger _logger;
@@ -44,7 +49,7 @@ public sealed class Worker
 
             try
             {
-                var request = JsonSerializer.Deserialize<OcrRequest>(line);
+                var request = JsonSerializer.Deserialize<OcrRequest>(line, RequestJsonOptions);
                 if (request?.ImagePath is null)
                 {
                     EmitErrorResponse("image_path required");

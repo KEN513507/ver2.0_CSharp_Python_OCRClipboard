@@ -33,6 +33,15 @@ public partial class Program
             return;
         }
 
+        // 🆕 前処理3レベル比較テスト（--test-preprocessing <画像パス> <期待テキストパス>）
+        if (args.Length >= 3 && args[0] == "--test-preprocessing")
+        {
+            var imagePath = args[1];
+            var expectedTextPath = args[2];
+            await RunPreprocessingComparisonAsync(imagePath, expectedTextPath);
+            return;
+        }
+
         // H0棄却テストモード（--test-h0 <文字数>）
         if (args.Length >= 2 && args[0] == "--test-h0")
         {
@@ -548,6 +557,214 @@ public partial class Program
 
         // リソース解放
         preprocessedBitmap.Dispose();
+    }
+
+    /// <summary>
+    /// 前処理3レベル比較テスト
+    /// レベル0（生画像）、レベル1（コントラスト）、レベル2（+シャープ）、レベル3（+二値化）
+    /// </summary>
+    private static async Task RunPreprocessingComparisonAsync(string imagePath, string expectedTextPath)
+    {
+        Console.WriteLine("========================================");
+        Console.WriteLine("[前処理比較テスト] 3レベル × 5回測定");
+        Console.WriteLine("========================================");
+        Console.WriteLine($"画像: {imagePath}");
+        Console.WriteLine($"期待テキスト: {expectedTextPath}");
+        Console.WriteLine("========================================\n");
+
+        // ファイル確認
+        if (!File.Exists(imagePath))
+        {
+            Console.Error.WriteLine($"❌ エラー: 画像ファイルが見つかりません: {imagePath}");
+            return;
+        }
+
+        if (!File.Exists(expectedTextPath))
+        {
+            Console.Error.WriteLine($"❌ エラー: 期待テキストが見つかりません: {expectedTextPath}");
+            return;
+        }
+
+        // 期待テキスト読み込み
+        var expectedText = await File.ReadAllTextAsync(expectedTextPath, Encoding.UTF8);
+        Console.WriteLine($"[期待テキスト] {expectedText.Length}文字読み込み\n");
+
+        // 画像読み込み
+        using var bitmap = new Bitmap(imagePath);
+        Console.WriteLine($"[画像情報] サイズ: {bitmap.Width}x{bitmap.Height}px");
+
+        // パディング
+        var pad = 8;
+        var paddedBitmap = new Bitmap(bitmap.Width, bitmap.Height + 2 * pad);
+        using (var g = Graphics.FromImage(paddedBitmap))
+        {
+            g.Clear(Color.White);
+            g.DrawImage(bitmap, 0, pad);
+        }
+
+        var engine = new WindowsMediaOcrEngine();
+
+        // レベル0: 生画像（パディングのみ）
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("📊 レベル0: 生画像（前処理なし）");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        var level0Results = await RunOcrIterations(engine, paddedBitmap, expectedText, 5);
+        PrintResults("レベル0", level0Results);
+
+        // レベル1: コントラスト強化のみ
+        Console.WriteLine("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("📊 レベル1: コントラスト強化のみ");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        using var level1Bitmap = ImageEnhancer.Level1_ContrastOnly(paddedBitmap);
+        var level1Results = await RunOcrIterations(engine, level1Bitmap, expectedText, 5);
+        PrintResults("レベル1", level1Results);
+
+        // レベル2: コントラスト + シャープニング
+        Console.WriteLine("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("📊 レベル2: コントラスト + シャープニング");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        using var level2Bitmap = ImageEnhancer.Level2_ContrastAndSharpen(paddedBitmap);
+        var level2Results = await RunOcrIterations(engine, level2Bitmap, expectedText, 5);
+        PrintResults("レベル2", level2Results);
+
+        // レベル3: フル前処理（適応的二値化含む）
+        Console.WriteLine("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("📊 レベル3: フル前処理（適応的二値化）");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        using var level3Bitmap = ImageEnhancer.Level3_FullWithAdaptiveBinarization(paddedBitmap);
+        var level3Results = await RunOcrIterations(engine, level3Bitmap, expectedText, 5);
+        PrintResults("レベル3", level3Results);
+
+        // 比較サマリー
+        Console.WriteLine("\n========================================");
+        Console.WriteLine("📈 比較サマリー");
+        Console.WriteLine("========================================");
+        Console.WriteLine($"{"レベル",-10} | {"平均時間",-12} | {"平均精度",-12} | {"最小精度",-12} | {"H0判定",-10}");
+        Console.WriteLine(new string('-', 70));
+
+        PrintComparisonRow("レベル0", level0Results);
+        PrintComparisonRow("レベル1", level1Results);
+        PrintComparisonRow("レベル2", level2Results);
+        PrintComparisonRow("レベル3", level3Results);
+
+        Console.WriteLine("========================================");
+
+        // 推奨レベル決定
+        var bestLevel = DetermineBestLevel(level0Results, level1Results, level2Results, level3Results);
+        Console.WriteLine($"\n🎯 推奨レベル: {bestLevel}");
+
+        paddedBitmap.Dispose();
+    }
+
+    private static async Task<(List<double> timings, List<double> accuracies, List<string> texts)> RunOcrIterations(
+        WindowsMediaOcrEngine engine, Bitmap bitmap, string expectedText, int iterations)
+    {
+        var timings = new List<double>();
+        var accuracies = new List<double>();
+        var texts = new List<string>();
+
+        for (int i = 0; i < iterations; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            var ocrResult = await engine.RecognizeAsync(bitmap);
+            sw.Stop();
+
+            var ocrMs = sw.Elapsed.TotalMilliseconds;
+            var recognized = ocrResult.CombinedText;
+            var accuracy = CalculateAccuracy(expectedText, recognized);
+
+            timings.Add(ocrMs);
+            accuracies.Add(accuracy);
+            texts.Add(recognized);
+
+            Console.WriteLine($"  試行{i + 1}: {ocrMs:F1}ms, 精度={accuracy:P2}");
+        }
+
+        return (timings, accuracies, texts);
+    }
+
+    private static void PrintResults(string levelName, (List<double> timings, List<double> accuracies, List<string> texts) results)
+    {
+        var avgTime = results.timings.Average();
+        var maxTime = results.timings.Max();
+        var avgAccuracy = results.accuracies.Average();
+        var minAccuracy = results.accuracies.Min();
+
+        Console.WriteLine($"\n[{levelName} 統計]");
+        Console.WriteLine($"  処理時間: 平均={avgTime:F1}ms, 最大={maxTime:F1}ms");
+        Console.WriteLine($"  精度: 平均={avgAccuracy:P2}, 最小={minAccuracy:P2}");
+
+        var timeReject = maxTime >= 10000.0;
+        var accuracyReject = minAccuracy < 0.95;
+
+        if (timeReject || accuracyReject)
+        {
+            Console.WriteLine($"  🔴 H0棄却");
+            if (timeReject) Console.WriteLine($"     理由: 処理時間超過 ({maxTime:F1}ms >= 10,000ms)");
+            if (accuracyReject) Console.WriteLine($"     理由: 精度不足 ({minAccuracy:P2} < 95%)");
+        }
+        else
+        {
+            Console.WriteLine($"  🟢 H0受容");
+        }
+    }
+
+    private static void PrintComparisonRow(string levelName, (List<double> timings, List<double> accuracies, List<string> texts) results)
+    {
+        var avgTime = results.timings.Average();
+        var avgAccuracy = results.accuracies.Average();
+        var minAccuracy = results.accuracies.Min();
+
+        var timeReject = results.timings.Max() >= 10000.0;
+        var accuracyReject = minAccuracy < 0.95;
+        var h0 = (timeReject || accuracyReject) ? "🔴 棄却" : "🟢 受容";
+
+        Console.WriteLine($"{levelName,-10} | {avgTime,10:F1}ms | {avgAccuracy,10:P2} | {minAccuracy,10:P2} | {h0,-10}");
+    }
+
+    private static string DetermineBestLevel(params (List<double> timings, List<double> accuracies, List<string> texts)[] levels)
+    {
+        string[] levelNames = { "レベル0（生画像）", "レベル1（コントラスト）", "レベル2（+シャープ）", "レベル3（+二値化）" };
+
+        // H0受容かつ最高精度のレベルを選択
+        var bestIdx = -1;
+        var bestAccuracy = 0.0;
+
+        for (int i = 0; i < levels.Length; i++)
+        {
+            var minAccuracy = levels[i].accuracies.Min();
+            var maxTime = levels[i].timings.Max();
+
+            var timeOk = maxTime < 10000.0;
+            var accuracyOk = minAccuracy >= 0.95;
+
+            if (timeOk && accuracyOk && minAccuracy > bestAccuracy)
+            {
+                bestIdx = i;
+                bestAccuracy = minAccuracy;
+            }
+        }
+
+        if (bestIdx >= 0)
+        {
+            return $"{levelNames[bestIdx]}（精度{bestAccuracy:P2}で H0受容）";
+        }
+
+        // H0受容なし → 最も精度が高いレベル
+        bestIdx = 0;
+        bestAccuracy = levels[0].accuracies.Average();
+
+        for (int i = 1; i < levels.Length; i++)
+        {
+            var avgAccuracy = levels[i].accuracies.Average();
+            if (avgAccuracy > bestAccuracy)
+            {
+                bestIdx = i;
+                bestAccuracy = avgAccuracy;
+            }
+        }
+
+        return $"{levelNames[bestIdx]}（精度{bestAccuracy:P2}だが H0棄却）";
     }
 
 }

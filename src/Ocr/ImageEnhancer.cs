@@ -258,4 +258,97 @@ public static class ImageEnhancer
 
         return enhanced;
     }
+
+    /// <summary>
+    /// レベル1: コントラスト強化のみ
+    /// 効果: 識字率変化なし (93.01% → 93.01%)
+    /// </summary>
+    public static Bitmap Level1_ContrastOnly(Bitmap source)
+    {
+        return EnhanceContrast(source);
+    }
+
+    /// <summary>
+    /// レベル2: コントラスト強化 + シャープニング
+    /// 期待効果: 識字率 +0.5-1% (93% → 93.5-94%)
+    /// </summary>
+    public static Bitmap Level2_ContrastAndSharpen(Bitmap source)
+    {
+        var contrasted = EnhanceContrast(source);
+        var sharpened = SharpenEdges(contrasted);
+        contrasted.Dispose();
+        return sharpened;
+    }
+
+    /// <summary>
+    /// レベル3: コントラスト強化 + シャープニング + 適応的二値化
+    /// 期待効果: 識字率 +1-3% (93% → 94-96%)
+    /// リスク: 過度な二値化で逆効果の可能性あり
+    /// </summary>
+    public static Bitmap Level3_FullWithAdaptiveBinarization(Bitmap source)
+    {
+        var contrasted = EnhanceContrast(source);
+        var sharpened = SharpenEdges(contrasted);
+        contrasted.Dispose();
+
+        var binarized = ApplyAdaptiveBinarization(sharpened);
+        sharpened.Dispose();
+
+        return binarized;
+    }
+
+    /// <summary>
+    /// 適応的二値化 (Bradley's Method)
+    /// 局所的な明度に基づいて閾値を決定
+    /// </summary>
+    private static Bitmap ApplyAdaptiveBinarization(Bitmap source)
+    {
+        int width = source.Width;
+        int height = source.Height;
+        var grayscale = ToGrayscale(source);
+        var result = new Bitmap(width, height);
+
+        // 積分画像の計算
+        long[,] integral = new long[height, width];
+        for (int y = 0; y < height; y++)
+        {
+            long rowSum = 0;
+            for (int x = 0; x < width; x++)
+            {
+                rowSum += grayscale.GetPixel(x, y).R;
+                integral[y, x] = rowSum + (y > 0 ? integral[y - 1, x] : 0);
+            }
+        }
+
+        // 局所的な閾値で二値化
+        int windowSize = Math.Max(width, height) / 16; // 画像サイズの1/16
+        double t = 0.15; // 閾値調整パラメータ (0.1-0.2が一般的)
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                // 局所領域の平均を計算
+                int x1 = Math.Max(0, x - windowSize / 2);
+                int x2 = Math.Min(width - 1, x + windowSize / 2);
+                int y1 = Math.Max(0, y - windowSize / 2);
+                int y2 = Math.Min(height - 1, y + windowSize / 2);
+
+                long sum = integral[y2, x2];
+                if (x1 > 0) sum -= integral[y2, x1 - 1];
+                if (y1 > 0) sum -= integral[y1 - 1, x2];
+                if (x1 > 0 && y1 > 0) sum += integral[y1 - 1, x1 - 1];
+
+                int count = (x2 - x1 + 1) * (y2 - y1 + 1);
+                double mean = (double)sum / count;
+
+                var pixel = grayscale.GetPixel(x, y).R;
+                var bw = pixel < mean * (1.0 - t) ? Color.Black : Color.White;
+                result.SetPixel(x, y, bw);
+            }
+        }
+
+        grayscale.Dispose();
+        return result;
+    }
 }
