@@ -78,7 +78,7 @@ public partial class Program
                 Console.Error.WriteLine($"[WARN] Selection too thin (W={width} H={height}); OCR may fail. Consider reselecting.");
             }
 
-            // PRE: 上下パディング追加（下端欠け対策）
+            // PRE: 上下パディング追加（下端欠け対策）+ 前処理
             var swPre = Stopwatch.StartNew();
             var pad = 8;
             var paddedBitmap = new Bitmap(width, height + 2 * pad);
@@ -87,23 +87,28 @@ public partial class Program
                 g.Clear(System.Drawing.Color.White);
                 g.DrawImage(bitmap, 0, pad);
             }
+
+            // 🆕 画像前処理: コントラスト強化（識字率 93% → 95%+ 目標）
+            var preprocessedBitmap = ImageEnhancer.ApplyRecommendedPreprocessing(paddedBitmap, applySharpen: false);
+            paddedBitmap.Dispose();
+
             swPre.Stop();
 
-            // OCR: 推論実行
+                        // OCR: 推論実行
             var swOcr = Stopwatch.StartNew();
             OcrResult? ocrResult = null;
             try
             {
-                ocrResult = await engine.RecognizeAsync(paddedBitmap);
+                ocrResult = await engine.RecognizeAsync(preprocessedBitmap);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[C#] OCR failed: {ex}");
+                Console.Error.WriteLine($"[ERROR] OCR failed: {ex.Message}");
                 return;
             }
             finally
             {
-                paddedBitmap.Dispose();
+                preprocessedBitmap.Dispose();
             }
             swOcr.Stop();
 
@@ -457,6 +462,11 @@ public partial class Program
 
         Console.WriteLine($"[前処理] 上下{pad}pxパディング追加");
 
+        // 🆕 画像前処理適用: コントラスト強化（識字率向上）
+        var preprocessedBitmap = ImageEnhancer.ApplyRecommendedPreprocessing(paddedBitmap, applySharpen: false);
+        paddedBitmap.Dispose();
+        Console.WriteLine($"[前処理] コントラスト強化適用 (識字率 93% → 95%+ 目標)");
+
         // OCR実行（5回測定）
         var engine = new WindowsMediaOcrEngine();
         var timings = new List<double>();
@@ -468,7 +478,7 @@ public partial class Program
         for (int i = 0; i < 5; i++)
         {
             var sw = Stopwatch.StartNew();
-            var ocrResult = await engine.RecognizeAsync(paddedBitmap);
+            var ocrResult = await engine.RecognizeAsync(preprocessedBitmap);
             sw.Stop();
 
             var ocrMs = sw.Elapsed.TotalMilliseconds;
@@ -535,6 +545,9 @@ public partial class Program
         Console.WriteLine("\n[認識結果サンプル]");
         Console.WriteLine(mostCommon.Length > 200 ? mostCommon[..200] + "..." : mostCommon);
         Console.WriteLine("========================================");
+
+        // リソース解放
+        preprocessedBitmap.Dispose();
     }
 
 }

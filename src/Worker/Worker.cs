@@ -47,7 +47,7 @@ public sealed class Worker
                 var request = JsonSerializer.Deserialize<OcrRequest>(line);
                 if (request?.ImagePath is null)
                 {
-                    EmitError("image_path required");
+                    EmitErrorResponse("image_path required");
                     continue;
                 }
 
@@ -79,18 +79,27 @@ public sealed class Worker
             catch (JsonException ex)
             {
                 _logger.LogWarning("Invalid JSON received: {Message}", ex.Message);
-                EmitError(ex.Message);
+                EmitErrorResponse(ex.Message);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process line");
-                EmitError(ex.Message);
+                EmitErrorResponse(ex.Message);
             }
         }
     }
 
     private void EmitSuccess(string json) => _emitter.EmitSuccess(json);
     private void EmitError(string json) => _emitter.EmitError(json);
+    private void EmitErrorResponse(string error)
+    {
+        var response = new
+        {
+            success = false,
+            error
+        };
+        EmitError(JsonSerializer.Serialize(response));
+    }
 
     private sealed record OcrRequest(string? ImagePath);
 }
