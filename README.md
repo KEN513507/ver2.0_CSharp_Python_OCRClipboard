@@ -104,6 +104,7 @@ dotnet run --project src\csharp\OCRClipboard.App -- --test-image test_images/sam
 - 実際のWebページや文書のスクリーンショットでOCR性能を検証
 - 5回実行による統計分析（平均/最小/最大時間・精度）
 - H0仮説検定（識字率 >= 95% かつ 処理時間 < 10秒）
+- **すぐ試す:** [test_images/QUICK_START.md](test_images/QUICK_START.md)
 - **完全ガイド:** [docs/IMAGE_TEST_GUIDE.md](docs/IMAGE_TEST_GUIDE.md)
 
 実行時には `[タイミング分析]` と `[PERF]` 行で処理時間を、`[OCR]`/`[CLIPBOARD]` で認識結果を確認できます。ログ例は `src/csharp/OCRClipboard.App/logs/` に保存されます。

@@ -36,7 +36,7 @@
 
 ```
 test_images/
-├── README.md                    # このディレクトリの説明
+├── QUICK_START.md               # クイックスタートガイド
 ├── sample_100chars.png          # 100文字程度のスクリーンショット
 ├── sample_100chars.txt          # 期待テキスト（オプション）
 ├── sample_500chars.png          # 500文字程度のスクリーンショット
@@ -380,9 +380,9 @@ dotnet run --project src\csharp\OCRClipboard.App -- --test-image test_images/str
 
 ## 📚 関連ドキュメント
 
-- [test_images/README.md](../test_images/README.md) - テスト画像ディレクトリの説明
-- [README.md](../README.md) - プロジェクト全体の説明
-- [BENCHMARK.md](BENCHMARK.md) - ベンチマーク結果
+- **[test_images/QUICK_START.md](../test_images/QUICK_START.md)** - すぐ試せるクイックスタート
+- **[README.md](../README.md)** - プロジェクト全体の説明
+- **[BENCHMARK.md](BENCHMARK.md)** - ベンチマーク結果
 
 ---
 

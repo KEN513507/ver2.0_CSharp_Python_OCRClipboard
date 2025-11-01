@@ -19,7 +19,7 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
 {
     private readonly OcrEngine _engine;
     private readonly string _languageTag;
-    
+
     // デバッグモード制御（環境変数 OCR_DEBUG=1 で有効化）
     private static readonly bool DebugMode = Environment.GetEnvironmentVariable("OCR_DEBUG") == "1";
 
@@ -76,7 +76,7 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         }
         await stream.FlushAsync().AsTask(ct).ConfigureAwait(false);
         stream.Seek(0);
-        
+
         var decoder = await BitmapDecoder.CreateAsync(stream).AsTask(ct).ConfigureAwait(false);
         var softwareBitmap = await decoder
             .GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied)
@@ -89,7 +89,7 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         var inferenceWatch = Stopwatch.StartNew();
         var ocrResult = await _engine.RecognizeAsync(softwareBitmap).AsTask(ct).ConfigureAwait(false);
         inferenceWatch.Stop();
-        
+
         softwareBitmap.Dispose();
 
         if (DebugMode && ocrResult.TextAngle.HasValue)

@@ -24,14 +24,15 @@ jobs:
       
     - name: Build solution
       run: dotnet build ver2.0_C#+Python_OCRClipboard.sln --configuration Release --no-restore
-      
-    # Note: テストは後で追加（現在テストプロジェクト.csprojが未整備）
-    # - name: Run fast tests (exclude SlowOCR)
-    #   run: dotnet test --filter "Category!=SlowOCR" --configuration Release --no-build --verbosity normal
-      
-    - name: Check for warnings
-      run: |
-        $buildLog = dotnet build ver2.0_C#+Python_OCRClipboard.sln --configuration Release --no-restore 2>&1
-        if ($buildLog -match "warning") {
-          Write-Host "::warning::Build contains warnings"
-        }
+    
+    - name: Verify formatting
+      run: dotnet format "ver2.0_C#+Python_OCRClipboard.sln" --verify-no-changes --severity error --no-restore
+
+    - name: Run unit tests
+      run: dotnet test tests/OCRClipboard.Tests/OCRClipboard.Tests.csproj --configuration Release --filter "Category!=SlowOCR"
+
+    - name: Install typos CLI
+      run: choco install typos -y
+
+    - name: Typos check
+      run: typos

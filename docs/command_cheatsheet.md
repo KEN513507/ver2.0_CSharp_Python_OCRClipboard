@@ -1,26 +1,26 @@
-# PowerShell コマンドチートシート
+# PowerShell Helper Commands
 
-`scripts/ps_aliases.ps1` を PowerShell プロファイル（`$PROFILE`）でドットソースすると、日常作業に必要な 10 個のショートコマンドが利用できます。
+プロジェクト直下で次を実行するとエイリアスが読み込まれ、定型作業を素早く実行できます。
 
 ```pwsh
-# 例: プロファイルに以下を追記
-. "$PSScriptRoot/../scripts/ps_aliases.ps1"
+# PowerShell 既定の gp エイリアス (Get-ItemProperty) と衝突するため、先に削除
+Remove-Item alias:gp -Force
+
+# エイリアスを読み込み
+. .\scripts\ps_aliases.ps1
 ```
 
-| エイリアス | 実行内容 | 用途 |
-|-----------|----------|------|
-| `tf` | `pytest -m "not slow" -q` | 速いテスト（実機 OCR なし） |
-| `ts` | `pytest -m "slow" -q` | 実機 OCR を含む遅いテストだけ |
-| `ta` | `pytest -q` | 総合テスト |
-| `to` | `pytest tests/scripts/test_ocr_accuracy.py -q` | OCR 精度テスト専用 |
-| `cw` | `python src/python/ocr_worker/main.py` | OCR ワーカー常駐起動 |
-| `co` | `python ocr-screenshot-app/main.py --image ./test_image.png --no-clipboard` | サンプル画像で OCR 実行 |
-| `lint` | `ruff check .` | 静的解析（lint） |
-| `fmt` | `black 'ocr-screenshot-app' src/python` | コード整形 |
-| `gs` | `git status -sb` | Git 作業ツリー状況を確認 |
-| `gp` | `git push origin HEAD` | 現在ブランチを GitHub へ push |
+| コマンド | 実行内容 | 用途 |
+|----------|----------|------|
+| `gs` | `git status -sb` | 作業ツリーの差分確認 |
+| `gp` | `git push origin HEAD` | 現在のブランチをリモートへ push |
+| `check` | `scripts/run_dev_checks.ps1` | Restore → Build → `dotnet format` → テスト → `typos` を一括実行 |
 
-> 補足  
-> - すべて 10 文字以内のコマンドです。  
-> - `co` はクリップボードへコピーしないよう `--no-clipboard` を付けています。必要ならオプションを外してください。  
-> - `tf` / `ts` / `ta` は slow マーカーの運用ポリシーに合わせたモードです。
+`check` には以下のオプションがあります。
+
+- `-IncludeSlow` … `Category=SlowOCR` の遅いテストも実行
+- `-SkipBuild` … `dotnet restore` / `dotnet build` を省略（事前にビルドが済んでいる場合）
+- `-SkipFormat` … `dotnet format --verify-no-changes` を省略
+- `-SkipTypos` … スペルチェック (`typos`) を省略
+
+> `typos` CLI が未導入の場合は `cargo install typos-cli` もしくは `choco install typos` を実行してください。

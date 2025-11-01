@@ -39,7 +39,7 @@ dotnet run --project src\csharp\OCRClipboard.App -- --test-image test_images/you
 
 ```
 test_images/
-├── README.md                    # このファイル
+├── QUICK_START.md               # このファイル
 ├── sample_100chars.png          # 100文字程度のスクリーンショット
 ├── sample_100chars.txt          # 期待テキスト（オプション）
 ├── sample_500chars.png          # 500文字程度のスクリーンショット
@@ -64,5 +64,5 @@ test_images/
 ## 📖 関連ドキュメント
 
 - **[完全なテストガイド](../docs/IMAGE_TEST_GUIDE.md)** - 詳細な実施手順とトラブルシューティング
-- **[メインREADME](../README.md)** - プロジェクト全体の説明
+- **[プロジェクトREADME](../README.md)** - プロジェクト全体の説明
 - **[ベンチマーク結果](../docs/BENCHMARK.md)** - 性能測定データ

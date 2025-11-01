@@ -1,0 +1,8 @@
+[files]
+extend-exclude = [
+  "logs/**",
+  "outputs/**",
+  "test_images/**",
+  "debug_capture.png",
+  "salvage/**"
+]

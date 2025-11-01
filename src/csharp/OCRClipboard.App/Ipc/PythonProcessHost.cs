@@ -43,7 +43,7 @@ public sealed class PythonProcessHost : IDisposable
             Path.Combine(_workingDirectory, "src", "python"),
             Path.Combine(_workingDirectory, "ocr-screenshot-app")
         };
-        
+
         var validPaths = paths.Where(Directory.Exists).ToList();
         if (validPaths.Any())
         {

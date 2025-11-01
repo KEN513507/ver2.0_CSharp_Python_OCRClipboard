@@ -1,38 +1,37 @@
-# TODO統合リスト（2025-11-01 更新）
+# TODO（2025-11-01 更新）
 
-## 現状：Windows.Media.Ocr 版への移行完了
+## 完了済み ✅
 
-**アーキテクチャ変更**: PaddleOCR（Python）→ Windows.Media.Ocr（C#単体）
+- Windows.Media.Ocr エンジン実装／日本語言語優先
+- Display 1 / DPI 100% のオーバーレイと座標ログ
+- 薄い選択に対する警告・上下 8px パディング
+- `[PERF]` / `[OCR]` / `[CLIPBOARD]` ログ整形
+- `scripts/run_dev_checks.ps1` による CI と同等のローカルチェック
+- xUnit テストプロジェクト (`tests/OCRClipboard.Tests`)
 
-### 完了事項 ✅
-- [x] Windows.Media.Ocr エンジン実装（日本語対応、100ms以下）
-- [x] Display 1（プライマリモニター）限定のオーバーレイ
-- [x] クロップ妥当性チェック（高さ<40px、幅/高さ>25 で警告）
-- [x] 上下8pxパディング追加（下端欠け対策）
-- [x] 言語初期化診断（日本語以外で警告）
-- [x] 固定フォーマット運用ログ（[PERF]/[OCR]/[CLIPBOARD]）
-- [x] 3回連続実行で性能検証（OCR: 72-155ms）
+## 優先タスク 🎯
 
-### 次のステップ 🎯
-1. **トレイ常駐化**
-   - [ ] System.Windows.Forms.NotifyIcon 実装
-   - [ ] ホットキー登録（Win32 RegisterHotKey、例: Ctrl+Shift+O）
-   - [ ] ESCキーで終了
-   - [ ] ホットキー衝突検知＆自動フォールバック
+1. **トレイ常駐 & ホットキー**
+   - [ ] `NotifyIcon` 常駐化（終了メニュー含む）
+   - [ ] `RegisterHotKey` で Ctrl+Shift+O を割り当て
+   - [ ] 安全な終了処理（F-1/F-2/F-5 達成）
 
-2. **品質向上（任意）**
-   - [ ] クリップボード二重書き込み抑制（0.5秒間同一テキスト無視）
-   - [ ] 最小長・記号比率ヒューリスティック（QualityConfig軽量版）
+2. **品質判定の配線**
+   - [ ] `OcrQualityEvaluator` を `Program.cs` に組み込み CER/Accuracy を算出
+   - [ ] `[QUALITY] cer=.. accuracy=..` をログ出力
+   - [ ] 品質 NG 時の挙動（警告と非コピー）を決定
 
-3. **ドキュメント整備**
-   - [x] README更新（Windows.Media.Ocr版の性能データ反映）
-   - [x] TODO更新（完了項目整理）
-   - [ ] PROJECT_SPEC更新（DFD簡略化、C#単体構成へ）
+3. **非機能メトリクスの実測**
+   - [ ] `dotnet publish` で self-contained バイナリサイズを計測（NF-3）
+   - [ ] 実行時メモリ使用量を計測し README/PROJECT_SPEC に追記（NF-4）
 
----
+4. **ドキュメントの継続整備**
+   - [ ] Slow テスト運用方針（self-hosted runner 含む）を `docs/CI_CD_STRATEGY.md` に追記
+   - [ ] `start_ocr_worker.cmd` がレガシーである旨をドキュメントに明記済みか確認
 
-## 追加の検討項目（次ステップ）
-- [ ] DTOでの QualityConfig 上書き（優先度: DTO > ENV > 既定）
-- [ ] 適用中の QualityConfig をログに1行出力（運用可視化）
-- [ ] _mock_paddleocr の適用範囲の明確化（必要なら slow 時は無効化）
-- [ ] キャプチャ座標のE2Eテスト（DPI/複数ディスプレイ）
+## 将来検討
+
+- 品質ログの可視化（`QualityConfig` の実値を起動時ログに出す）
+- Display 2 / DPI 125% テスト用の E2E スクリプト（必要なら）
+- SlowOCR（実機）テストの実装と self-hosted runner 導入
+- クリップボードへの重複書き込み抑止、最小長ヒューリスティックなど細かな UX 改善

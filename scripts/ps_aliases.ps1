@@ -1,13 +1,8 @@
-# PowerShell helper aliases/functions for fast OCR workflow -------------------
-# 保存先例: $PROFILE から `.` (ドットソース) するか、PowerShell プロファイルに追記。
+# PowerShell helper aliases/functions for the current Windows.Media.Ocr workflow.
+# 使用方法: セッションで `. .\scripts\ps_aliases.ps1` を実行して読み込む。
+# 注意: 既定の PowerShell エイリアス `gp` (Get-ItemProperty) と衝突するため、
+#       利用前に `Remove-Item alias:gp -Force` を実行してください。
 
-function tf   { pytest -m "not slow" -q }
-function ts   { pytest -m "slow" -q }
-function ta   { pytest -q }
-function to   { pytest tests/scripts/test_ocr_accuracy.py -q }
-function cw   { python src/python/ocr_worker/main.py }
-function co   { python ocr-screenshot-app/main.py --image ./test_image.png --no-clipboard }
-function lint { ruff check . }
-function fmt  { black 'ocr-screenshot-app' src/python }
-function gs   { git status -sb }
-function gp   { git push origin HEAD }
+function gs { git status -sb }
+function gp { git push origin HEAD }
+function check { & "$PSScriptRoot\run_dev_checks.ps1" @args }
