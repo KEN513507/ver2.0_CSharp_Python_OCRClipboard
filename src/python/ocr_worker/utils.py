@@ -4,7 +4,7 @@ Pure functions for text processing, bbox calculations, and other low-level opera
 """
 
 import re
-from typing import List
+from typing import List, Optional
 
 
 def clean_text(text: str) -> str:
@@ -21,16 +21,16 @@ def clean_text(text: str) -> str:
     text = text.strip()
 
     # Replace multiple spaces with single space
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
 
     # Normalize common full-width punctuation to half-width
-    text = text.replace('　', ' ')  # Full-width space to half-width
-    text = text.replace('！', '!')  # Full-width exclamation
-    text = text.replace('？', '?')  # Full-width question
-    text = text.replace('…', '...')  # Full-width ellipsis
+    text = text.replace("　", " ")  # Full-width space to half-width
+    text = text.replace("！", "!")  # Full-width exclamation
+    text = text.replace("？", "?")  # Full-width question
+    text = text.replace("…", "...")  # Full-width ellipsis
 
     # Remove non-printable characters except common punctuation
-    text = re.sub(r'[^\w\s\.\,\!\?\-\(\)\[\]\{\}\:;]', '', text, flags=re.UNICODE)
+    text = re.sub(r"[^\w\s\.\,\!\?\-\(\)\[\]\{\}\:;]", "", text, flags=re.UNICODE)
 
     return text
 
@@ -50,7 +50,9 @@ def is_bbox_valid(bbox: List[int]) -> bool:
     return len(bbox) == 4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]
 
 
-def normalize_bbox_coordinates(bbox: List[int], image_width: int, image_height: int) -> List[float]:
+def normalize_bbox_coordinates(
+    bbox: List[int], image_width: int, image_height: int
+) -> List[float]:
     """
     Normalize bbox coordinates to [0,1] range relative to image dimensions.
     """
@@ -64,61 +66,95 @@ def normalize_bbox_coordinates(bbox: List[int], image_width: int, image_height: 
         bbox[0] / image_width,
         bbox[1] / image_height,
         bbox[2] / image_width,
-        bbox[3] / image_height
+        bbox[3] / image_height,
     ]
 
 
 HORIZONTAL_GAP_TOLERANCE = 10  # pixels
 
 
-def merge_text_boxes(boxes: List[List[int]]) -> List[List[int]]:
+def merge_text_boxes(
+    boxes: List[List[int]],
+    *,
+    x_gap: Optional[int] = None,
+    y_overlap_ratio: float = 0.5,
+) -> List[List[int]]:
     """
     Merge intersecting or adjacent bounding boxes.
-    Boxes are in format [x1, y1, x2, y2].
-    Merges boxes that overlap or fall within a small horizontal gap tolerance.
+
+    Args:
+        boxes: Bounding boxes in [x1, y1, x2, y2] format.
+        x_gap: Maximum horizontal gap (pixels) tolerated between boxes. Defaults to constant.
+        y_overlap_ratio: Minimum vertical overlap ratio required to merge boxes.
     """
     if not boxes:
         return []
 
-    boxes = [list(b) for b in boxes if is_bbox_valid(b)]  # copy to avoid modifying original
+    gap_limit = HORIZONTAL_GAP_TOLERANCE if x_gap is None else x_gap
 
-    if not boxes:
+    candidates = [list(b) for b in boxes if is_bbox_valid(b)]
+    if not candidates:
         return []
 
-    while True:
-        merged_any = False
+    merged = True
+    while merged:
+        merged = False
+        candidates.sort(key=lambda b: (b[1], b[0]))
         i = 0
-        while i < len(boxes):
+        while i < len(candidates) - 1:
+            box_a = candidates[i]
             j = i + 1
-            while j < len(boxes):
-                if _boxes_intersect(boxes[i], boxes[j]):
-                    boxes[i] = _union_boxes(boxes[i], boxes[j])
-                    del boxes[j]
-                    merged_any = True
+            while j < len(candidates):
+                box_b = candidates[j]
+                if _should_merge(
+                    box_a, box_b, x_gap=gap_limit, y_overlap_ratio=y_overlap_ratio
+                ):
+                    new_box = _union_boxes(box_a, box_b)
+                    candidates[i] = new_box
+                    del candidates[j]
+                    merged = True
+                    box_a = new_box
                 else:
                     j += 1
             i += 1
-        if not merged_any:
-            break
 
-    return sorted(boxes, key=lambda b: (b[1], b[0]))
+    candidates.sort(key=lambda b: (b[1], b[0]))
+    return candidates
 
 
-def _boxes_intersect(b1: List[int], b2: List[int]) -> bool:
-    """Check if two boxes intersect or sit within the horizontal gap tolerance on the same line."""
-    vertical_overlap = not (b1[3] < b2[1] or b2[3] < b1[1])
-
-    if not vertical_overlap:
+def _should_merge(
+    b1: List[int], b2: List[int], *, x_gap: int, y_overlap_ratio: float
+) -> bool:
+    if _vertical_overlap_ratio(b1, b2) < y_overlap_ratio:
         return False
+    if _horizontal_gap(b1, b2) >= x_gap:
+        return False
+    return True
 
-    if b1[2] >= b2[0] and b1[0] <= b2[2]:
-        return True  # direct overlap
 
-    horizontal_gap = min(abs(b2[0] - b1[2]), abs(b1[0] - b2[2]))
-    return horizontal_gap <= HORIZONTAL_GAP_TOLERANCE
+def _vertical_overlap_ratio(b1: List[int], b2: List[int]) -> float:
+    overlap = min(b1[3], b2[3]) - max(b1[1], b2[1])
+    if overlap <= 0:
+        return 0.0
+    height_a = b1[3] - b1[1]
+    height_b = b2[3] - b2[1]
+    min_height = min(height_a, height_b)
+    if min_height <= 0:
+        return 0.0
+    return overlap / min_height
+
+
+def _horizontal_gap(b1: List[int], b2: List[int]) -> int:
+    if b1[2] >= b2[0] and b2[2] >= b1[0]:
+        return 0
+    return min(abs(b2[0] - b1[2]), abs(b1[0] - b2[2]))
 
 
 def _union_boxes(b1: List[int], b2: List[int]) -> List[int]:
     """Return the union of two boxes."""
-    return [min(b1[0], b2[0]), min(b1[1], b2[1]),
-            max(b1[2], b2[2]), max(b1[3], b2[3])]
+    return [
+        min(b1[0], b2[0]),
+        min(b1[1], b2[1]),
+        max(b1[2], b2[2]),
+        max(b1[3], b2[3]),
+    ]

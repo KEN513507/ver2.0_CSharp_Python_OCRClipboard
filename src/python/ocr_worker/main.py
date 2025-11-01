@@ -1,129 +1,151 @@
-import pyperclip
-import cv2
-import numpy as np
-from paddleocr import PaddleOCR
-from PIL import Image, ImageGrab
-import tkinter as tk
-import time
-import sys
+"""Entry point for the Python OCR worker."""
+
+from __future__ import annotations
+
+import argparse
 import json
-import os
-#これは「ディスプレイ1全画面上で領域選択 → PaddleOCRで文字認識 → クリップボードへ」の骨組み。
-# 領域選択ツール（tkinterでオーバーレイして選択）
-def select_area():
-    root = tk.Tk()
-    root.attributes("-alpha", 0.3)
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)
-    canvas = tk.Canvas(root, cursor="cross", bg='black')
-    canvas.pack(fill=tk.BOTH, expand=True)
-    start_x = start_y = cur_x = cur_y = 0
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict
 
-    rect = None
-    coords = []
+try:
+    from ocr_screenshot_app import capture, clipboard, logging_utils, ocr
+except ModuleNotFoundError:  # pragma: no cover - fallback when PYTHONPATH未設定
+    for p in (".", "src/python", "ocr-screenshot-app"):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    from ocr_screenshot_app import capture, clipboard, logging_utils, ocr
 
-    def on_button_press(event):
-        nonlocal start_x, start_y, rect
-        start_x = canvas.canvasx(event.x)
-        start_y = canvas.canvasy(event.y)
-        rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline='red')
+BASE_DIR = Path(__file__).resolve().parents[3]
 
-    def on_move_press(event):
-        nonlocal rect
-        cur_x, cur_y = canvas.canvasx(event.x), canvas.canvasy(event.y)
-        canvas.coords(rect, start_x, start_y, cur_x, cur_y)
 
-    def on_release(event):
-        x1 = int(min(start_x, event.x))
-        y1 = int(min(start_y, event.y))
-        x2 = int(max(start_x, event.x))
-        y2 = int(max(start_y, event.y))
-        coords.extend([x1, y1, x2, y2])
-        root.destroy()
+def _emit(payload: Dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
 
-    canvas.bind("<ButtonPress-1>", on_button_press)
-    canvas.bind("<B1-Motion>", on_move_press)
-    canvas.bind("<ButtonRelease-1>", on_release)
-    root.mainloop()
 
-    return tuple(coords)
+def _resolve_image_path(image_path: str) -> Path:
+    path = Path(image_path)
+    if not path.is_absolute():
+        path = (BASE_DIR / image_path).resolve()
+    return path
 
-# メイン処理
-def run_ocr():
-    print("▶ 範囲選択して Enter...")
 
-    bbox = select_area()
-    print(f"選択範囲: {bbox}")
+def run_interactive(display: int = 1) -> None:
+    logger = logging_utils.get_logger()
+    logger.info("Starting interactive OCR capture on display %d", display)
 
-    # PILで全画面キャプチャして範囲切り出し（ディスプレイ1前提）
-    screenshot = ImageGrab.grab(bbox=bbox)
-    image_np = np.array(screenshot)
+    result = capture.capture_interactive(display=display)
+    logger.info("Captured bbox: %s", result.bbox)
 
-    # PaddleOCR初期化
-    ocr = PaddleOCR(use_angle_cls=True, lang='japan')
+    ocr_result = ocr.recognize_image(result.image)
+    clipboard.copy_text(ocr_result.combined_text)
+    logger.info("Copied text to clipboard")
 
-    start = time.time()
-    result = ocr.ocr(image_np, cls=True)
-    elapsed = time.time() - start
+    _emit(
+        {
+            "success": True,
+            "texts": ocr_result.texts,
+            "scores": ocr_result.scores,
+            "text": ocr_result.combined_text,
+            "bbox": result.bbox,
+        }
+    )
 
-    text_blocks = [word_info[1][0] for line in result for word_info in line]
-    final_text = ''.join(text_blocks)
 
-    print("📝 認識結果:")
-    print(final_text)
-    print(f"⏱ OCR処理時間: {elapsed:.2f}秒")
+def process_requests() -> None:
+    logger = logging_utils.get_logger()
+    logger.info("[WORKER] Entering stdin loop (press Ctrl+C to stop)")
 
-    # クリップボードにコピー
-    pyperclip.copy(final_text)
-    print("📋 クリップボードにコピーしました。")
-
-# 標準入力ループ処理
-def process_requests():
-    ocr = PaddleOCR(lang='japan')
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:  # 空行を無視
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
             continue
         try:
-            data = json.loads(line)
-            image_path = data.get('image_path')
-            if not image_path:
-                print(json.dumps({"error": "image_path required"}))
-                continue
+            request = json.loads(line)
+        except json.JSONDecodeError as exc:
+            logger.warning("Invalid JSON received: %s", exc)
+            _emit({"success": False, "error": str(exc)})
+            continue
 
-            # 絶対パスに変換（プロジェクトルートからの相対パスを想定）
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            if not os.path.isabs(image_path):
-                image_path = os.path.abspath(os.path.join(script_dir, '../../..', image_path))
+        image_path = request.get("image_path")
+        if not image_path:
+            _emit({"success": False, "error": "image_path required"})
+            continue
 
-            if not os.path.exists(image_path):
-                print(json.dumps({"error": f"Image file not found: {image_path}", "success": False}))
-                continue
+        resolved_path = _resolve_image_path(image_path)
+        if not resolved_path.exists():
+            _emit({"success": False, "error": f"Image file not found: {resolved_path}"})
+            continue
 
-            start = time.time()
-            result = ocr.predict(image_path)  # ocr.ocr() → ocr.predict() に変更
-            elapsed = time.time() - start
+        try:
+            image = capture.load_image(str(resolved_path))
+            start = time.perf_counter()
+            result = ocr.recognize_image(image)
+            elapsed = time.perf_counter() - start
+            logger.info("[PERF] OCR request completed in %.3fs", elapsed)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Failed to process %s: %s", resolved_path, exc)
+            _emit({"success": False, "error": str(exc)})
+            continue
 
-            # predict() の結果構造に合わせてテキスト抽出
-            if result and len(result) > 0:
-                rec_texts = result[0].get('rec_texts', [])
-                final_text = ''.join(rec_texts)
-            else:
-                final_text = ''
-
-            response = {
-                "text": final_text,
+        _emit(
+            {
+                "success": True,
+                "text": result.combined_text,
+                "texts": result.texts,
+                "scores": result.scores,
                 "processing_time": elapsed,
-                "success": True
             }
-            print(json.dumps(response))
-        except json.JSONDecodeError as e:
-            print(json.dumps({"error": f"Invalid JSON: {str(e)}", "success": False}))
-        except Exception as e:
-            print(json.dumps({"error": str(e), "success": False}))
+        )
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
-        run_ocr()
+
+def run_resident_mode() -> None:
+    """Resident mode: warmup + stdin loop + idle timeout."""
+    logger = logging_utils.get_logger()
+    logger.info("[RESIDENT] Warming up OCR engine...")
+
+    # Warmup
+    warmup_start = time.perf_counter()
+    ocr.warmup_engine()
+    warmup_elapsed = time.perf_counter() - warmup_start
+    logger.info(
+        "[RESIDENT] Warmup complete in %.2fs. Ready for requests.", warmup_elapsed
+    )
+
+    # Emit ready signal to stdout for C# client
+    _emit({"status": "ready", "warmup_time": warmup_elapsed})
+
+    # Process requests
+    process_requests()
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="OCR worker process")
+    parser.add_argument(
+        "--interactive", action="store_true", help="Run in interactive capture mode."
+    )
+    parser.add_argument(
+        "--display", type=int, default=1, help="Display index for interactive capture."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["resident", "oneshot"],
+        default="oneshot",
+        help="Worker mode.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _build_parser().parse_args(argv)
+    if args.interactive:
+        run_interactive(display=args.display)
+    elif args.mode == "resident":
+        run_resident_mode()
     else:
         process_requests()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

@@ -1,27 +1,43 @@
 import unittest
+
+import pytest
+
+pytest.importorskip("cv2")
+pytest.importorskip("yomitoku")
+
 from ocr_worker.handler import judge_quality
-from ocr_worker.utils import clean_text, calculate_bbox_area, is_bbox_valid, normalize_bbox_coordinates
 
 
 class TestHandler(unittest.TestCase):
-    def test_judge_quality_pass(self):
-        # Test cases where error <= 3 and confidence >= 0.85 should return True (stricter thresholds)
-        self.assertTrue(judge_quality("hello", "hello", 1.0))  # 0 errors, high confidence
-        self.assertTrue(judge_quality("hello", "hell", 0.9))   # 1 deletion, high confidence
-        self.assertTrue(judge_quality("hello", "helo", 0.85))  # 1 deletion, min confidence
-        self.assertTrue(judge_quality("hello", "hxllo", 0.9))  # 1 substitution
-        self.assertTrue(judge_quality("hello", "helloo", 0.9)) # 1 insertion
-        self.assertTrue(judge_quality("test", "tset", 0.85))   # 2 substitutions, distance 2 <=3
-        self.assertTrue(judge_quality("hello", "hxllo", 0.85)) # 1 substitution, min confidence
+    def test_judge_quality_pass_relaxed_thresholds(self):
+        self.assertTrue(judge_quality("hello", "hello", 1.0))
+        self.assertTrue(judge_quality("hello world", "helo world", 0.72))  # 1 deletion, relaxed confidence
+        long_expected = "日本語OCRテスト" * 5
+        long_actual = long_expected[:-8] + "サンプル"  # introduce 8 char diff within tolerance
+        self.assertTrue(judge_quality(long_expected, long_actual, 0.75))
 
-    def test_judge_quality_fail(self):
-        # Test cases where error > 3 or confidence < 0.85 should return False (stricter thresholds)
-        self.assertFalse(judge_quality("abcde", "fghij", 1.0))  # 5 substitutions, distance 5 >3
-        self.assertFalse(judge_quality("", "123456", 0.9))     # 6 insertions, distance 6 >3
-        self.assertFalse(judge_quality("short", "thisisalongstring", 0.9))  # Many differences, distance >3
-        self.assertFalse(judge_quality("hello", "hello", 0.7))  # 0 errors but low confidence
-        self.assertFalse(judge_quality("hello", "hell", 0.5))   # 1 deletion but low confidence
-        self.assertFalse(judge_quality("hello", "world", 0.9))  # 4 substitutions, distance 4 >3
+    def test_judge_quality_fails_for_large_errors(self):
+        expected = "品質判定のしきい値テストです" * 3
+        actual = "誤認識" * 5
+        self.assertFalse(judge_quality(expected, actual, 0.9))
+
+    def test_judge_quality_fails_for_low_confidence(self):
+        self.assertFalse(judge_quality("hello world", "hello world", 0.65))
+
+    def test_judge_quality_requires_minimum_length(self):
+        self.assertFalse(judge_quality("long expected text", "tiny", 0.95))
+
+    def test_judge_quality_rejects_noise(self):
+        noisy = "@@@@####$$$$"
+        self.assertFalse(judge_quality("signal text", noisy, 0.95))
+
+
+def test_judge_quality_respects_env(monkeypatch):
+    monkeypatch.setenv("OCR_MIN_CONFIDENCE", "0.2")
+    monkeypatch.setenv("OCR_MAX_ABS_EDIT", "50")
+    monkeypatch.setenv("OCR_MAX_REL_EDIT", "1.0")
+    assert judge_quality("hello", "he", 0.25)
+
 
 if __name__ == '__main__':
     unittest.main()

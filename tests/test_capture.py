@@ -1,116 +1,139 @@
-
-
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 from ocr_worker.utils import merge_text_boxes
 
 
 class TestCapture(unittest.TestCase):
-    @patch('ocr_sharp.capture.selector.mss')
-    def test_capture_area_calculation(self, mock_mss):
-        """Test capture area calculation with mocked mss"""
-        from ocr_sharp.capture.selector import capture_area
+    @patch("ocr_screenshot_app.capture.Image")
+    @patch("ocr_screenshot_app.capture.mss")
+    def test_grab_image_uses_mss(self, mock_mss, mock_image):
+        from ocr_screenshot_app.capture import grab_image
 
-        # Mock the mss grab result
-        mock_sct = Mock()
-        mock_img = Mock()
-        mock_img.size = (100, 100)
-        mock_img.rgb = b'fake_rgb_data'
-        mock_sct.grab.return_value = mock_img
-        mock_mss.return_value.__enter__.return_value = mock_sct
+        mock_context = Mock()
+        mock_screen = Mock()
+        mock_screen.size = (100, 100)
+        mock_screen.rgb = b"fake_rgb"
+        mock_context.grab.return_value = mock_screen
+        mock_mss.mss.return_value.__enter__.return_value = mock_context
+        sentinel = Mock()
+        mock_image.frombytes.return_value = sentinel
 
-        bbox = (10, 20, 110, 120)  # x1, y1, x2, y2
-        result = capture_area(bbox)
+        bbox = (10, 20, 110, 120)
+        result = grab_image(bbox)
 
-        # Verify grab was called with correct coordinates
-        mock_sct.grab.assert_called_once_with({
-            "top": 20, "left": 10, "width": 100, "height": 100
-        })
-        self.assertEqual(result, mock_img)
+        mock_context.grab.assert_called_once_with(
+            {"left": 10, "top": 20, "width": 100, "height": 100}
+        )
+        mock_image.frombytes.assert_called_once_with("RGB", mock_screen.size, mock_screen.rgb)
+        self.assertEqual(result, sentinel)
 
-    @patch('ocr_sharp.capture.selector.mss')
-    @patch('ocr_sharp.capture.selector.pyautogui')
-    @patch('ocr_sharp.capture.selector.tkinter')
-    def test_select_capture_area(self, mock_tk, mock_pyautogui, mock_mss):
-        """Test capture area selection with mocked GUI"""
-        from ocr_sharp.capture.selector import select_capture_area
+    @patch("ocr_screenshot_app.capture.tk.Canvas")
+    @patch("ocr_screenshot_app.capture.tk.Tk")
+    @patch("ocr_screenshot_app.capture.mss")
+    def test_select_capture_area(self, mock_mss, mock_tk, mock_canvas):
+        from ocr_screenshot_app.capture import select_capture_area
 
-        # Mock monitor info
         mock_monitor = {"left": 0, "top": 0, "width": 1920, "height": 1080}
-        mock_mss.mss.return_value.monitors = [mock_monitor]
+        mock_context = Mock()
+        mock_context.monitors = [None, mock_monitor]
+        mock_mss.mss.return_value.__enter__.return_value = mock_context
 
-        # Mock tkinter components
         mock_root = Mock()
-        mock_canvas = Mock()
-        mock_root.attributes = Mock()
-        mock_root.configure = Mock()
-        mock_canvas.pack = Mock()
-        mock_canvas.delete = Mock()
-        mock_canvas.create_rectangle = Mock()
-        mock_canvas.bind = Mock()
-        mock_root.mainloop = Mock()
+        mock_root.quit = Mock()
         mock_root.destroy = Mock()
+        mock_canvas_instance = Mock()
+        mock_tk.return_value = mock_root
+        mock_canvas.return_value = mock_canvas_instance
 
-        mock_tk.Tk.return_value = mock_root
-        mock_tk.Canvas.return_value = mock_canvas
-
-        # Simulate mouse events
         start_x, start_y, end_x, end_y = 100, 100, 200, 200
 
-        def mock_bind(event, callback):
-            if event == "<ButtonPress-1>":
-                callback(Mock(x=start_x, y=start_y))
-            elif event == "<B1-Motion>":
-                callback(Mock(x=end_x, y=end_y))
-            elif event == "<ButtonRelease-1>":
-                callback(Mock(x=end_x, y=end_y))
-                mock_root.quit()
+        def bind(event, handler):
+            event_map = {
+                "<ButtonPress-1>": Mock(x=start_x, y=start_y),
+                "<B1-Motion>": Mock(x=end_x, y=end_y),
+                "<ButtonRelease-1>": Mock(x=end_x, y=end_y),
+            }
+            handler(event_map[event])
 
-        mock_canvas.bind.side_effect = mock_bind
+        mock_canvas_instance.bind.side_effect = bind
+        mock_root.mainloop.side_effect = lambda: None
 
         result = select_capture_area(display=1)
 
-        # Verify result includes monitor offset
-        expected = (start_x, start_y, end_x + mock_monitor["left"], end_y + mock_monitor["top"])
+        expected = (start_x, start_y, end_x, end_y)
         self.assertEqual(result, expected)
 
     def test_merge_text_boxes_in_capture_context(self):
-        """Test bbox merging in capture processing context"""
-        # Simulate OCR-detected text boxes that need merging
         boxes = [
-            [100, 100, 150, 120],  # "Hello"
-            [155, 100, 200, 120],  # "World"
-            [300, 100, 350, 120],  # "Test"
+            [100, 100, 150, 120],
+            [155, 100, 200, 120],
+            [300, 100, 350, 120],
         ]
 
         merged = merge_text_boxes(boxes)
 
-        # Should merge adjacent "Hello" and "World", keep "Test" separate
         self.assertEqual(len(merged), 2)
-        self.assertEqual(merged[0], [100, 100, 200, 120])  # Merged Hello World
-        self.assertEqual(merged[1], [300, 100, 350, 120])  # Test separate
+        self.assertEqual(merged[0], [100, 100, 200, 120])
+        self.assertEqual(merged[1], [300, 100, 350, 120])
 
-    @patch('src.python.ocr_worker.main.ImageGrab')
-    @patch('src.python.ocr_worker.main.select_area')
-    def test_main_capture_integration(self, mock_select, mock_grab):
-        """Test main.py capture integration with mocking"""
-        from src.python.ocr_worker.main import select_area
+    @patch("ocr_sharp.capture.selector.mss")
+    def test_selector_capture_area_calculation(self, mock_mss):
+        from ocr_sharp.capture.selector import capture_area
 
-        # Mock the select_area function to return test bbox
-        mock_select.return_value = (100, 100, 200, 200)
+        mock_sct = MagicMock()
+        mock_img = MagicMock()
+        mock_sct.grab.return_value = mock_img
+        mock_mss.mss.return_value.__enter__.return_value = mock_sct
 
-        # Mock PIL ImageGrab
-        mock_image = Mock()
-        mock_grab.grab.return_value = mock_image
+        bbox = (10, 20, 110, 120)
+        result = capture_area(bbox)
 
-        # This would normally be called in main, but we test the logic
-        bbox = mock_select()
-        screenshot = mock_grab.grab(bbox=bbox)
+        mock_sct.grab.assert_called_once_with({"top": 20, "left": 10, "width": 100, "height": 100})
+        self.assertEqual(result, mock_img)
 
-        mock_select.assert_called_once()
-        mock_grab.grab.assert_called_once_with(bbox=(100, 100, 200, 200))
-        self.assertEqual(screenshot, mock_image)
+    @patch("ocr_sharp.capture.selector.tk.Canvas")
+    @patch("ocr_sharp.capture.selector.tk.Tk")
+    @patch("ocr_sharp.capture.selector.mss")
+    def test_selector_select_capture_area(self, mock_mss, mock_tk, mock_canvas):
+        from ocr_sharp.capture.selector import select_capture_area
+
+        mock_monitor = {"left": 5, "top": 10, "width": 1920, "height": 1080}
+        mock_context = Mock()
+        mock_context.monitors = [None, mock_monitor]
+        mock_mss.mss.return_value.monitors = mock_context.monitors
+        mock_mss.mss.return_value.__enter__.return_value = mock_context
+
+        mock_root = Mock()
+        mock_root.quit = Mock()
+        mock_root.destroy = Mock()
+        mock_canvas_instance = Mock()
+        mock_tk.return_value = mock_root
+        mock_canvas.return_value = mock_canvas_instance
+
+        start_x, start_y, end_x, end_y = 100, 150, 200, 250
+
+        def bind(event, handler):
+            event_map = {
+                "<ButtonPress-1>": Mock(x=start_x, y=start_y),
+                "<B1-Motion>": Mock(x=end_x, y=end_y),
+                "<ButtonRelease-1>": Mock(x=end_x, y=end_y),
+            }
+            handler(event_map[event])
+
+        mock_canvas_instance.bind.side_effect = bind
+        mock_root.mainloop.side_effect = lambda: None
+
+        result = select_capture_area()
+
+        expected = (
+            min(start_x, end_x) + mock_monitor["left"],
+            min(start_y, end_y) + mock_monitor["top"],
+            max(start_x, end_x) + mock_monitor["left"],
+            max(start_y, end_y) + mock_monitor["top"],
+        )
+        self.assertEqual(result, expected)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

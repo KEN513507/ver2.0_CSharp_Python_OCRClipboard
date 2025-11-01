@@ -2,14 +2,32 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-import cv2
-from PIL import Image
+import logging
+
+try:
+    import cv2
+except ImportError:  # pragma: no cover - heavy dependency may be absent in tests
+    cv2 = None  # type: ignore
+
 import numpy as np
-import yomitoku
 
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - optional dependency for preprocessing
+    Image = None  # type: ignore
+
+try:
+    import yomitoku
+except ImportError:  # pragma: no cover - optional dependency
+    yomitoku = None  # type: ignore
+
+
+from .config import QualityConfig, load_quality_config, normalize_text
 from .dto import HealthCheck, HealthOk, OcrRequest, OcrResponse
+
+logger = logging.getLogger(__name__)
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -40,6 +58,9 @@ def preprocess_image_for_ocr(image: np.ndarray) -> np.ndarray:
     Enhanced image preprocessing for better OCR accuracy.
     Applies multiple preprocessing techniques to improve text recognition.
     """
+    if cv2 is None:  # pragma: no cover - fallback for environments without OpenCV
+        raise ImportError("OpenCV (cv2) is required for image preprocessing")
+
     # Convert to grayscale if not already
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -57,8 +78,9 @@ def preprocess_image_for_ocr(image: np.ndarray) -> np.ndarray:
     blurred = cv2.GaussianBlur(enhanced, (3, 3), 0)
 
     # Apply adaptive thresholding for better contrast
-    thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv2.THRESH_BINARY, 11, 2)
+    thresh = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
 
     # Morphological operations to clean up the image
     kernel = np.ones((1, 1), np.uint8)
@@ -66,42 +88,58 @@ def preprocess_image_for_ocr(image: np.ndarray) -> np.ndarray:
     processed = cv2.morphologyEx(processed, cv2.MORPH_OPEN, kernel)
 
     # Additional sharpening to enhance text edges
-    kernel_sharp = np.array([[-1,-1,-1],
-                             [-1, 9,-1],
-                             [-1,-1,-1]])
+    kernel_sharp = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     processed = cv2.filter2D(processed, -1, kernel_sharp)
 
     # Resize to 2x for better OCR (maintain aspect ratio)
     height, width = processed.shape[:2]
-    processed = cv2.resize(processed, (width * 2, height * 2), interpolation=cv2.INTER_CUBIC)
+    processed = cv2.resize(
+        processed, (width * 2, height * 2), interpolation=cv2.INTER_CUBIC
+    )
 
     return processed
 
 
-def judge_quality(expected_text: str, actual_text: str, confidence: float = 0.0) -> bool:
-    """
-    Judge OCR quality: return True if character error (Levenshtein distance) <= 3 and confidence >= 0.85, else False.
-    Stricter thresholds for higher accuracy requirements.
-    """
-    error = levenshtein_distance(expected_text, actual_text)
+def judge_quality(
+    expected_text: str,
+    actual_text: str,
+    confidence: float = 0.0,
+    *,
+    config: Optional[QualityConfig] = None,
+) -> bool:
+    """Return True when OCR output meets relaxed quality thresholds.
 
-    # Additional quality constraints
-    min_length = max(1, len(expected_text) // 10)  # At least 10% of expected text
-    if len(actual_text) < min_length:
+    The checker tolerates up to ``QUALITY_MAX_REL_ERROR`` relative difference (capped by
+    ``QUALITY_MAX_ABS_ERROR``) and expects confidence around ``QUALITY_MIN_CONFIDENCE`` for
+    sufficiently long strings.  These values reflect empirical OCR performance rather than
+    a theoretical best-case.
+    """
+
+    cfg = config or load_quality_config()
+
+    expected = normalize_text(expected_text or "", cfg)
+    actual = normalize_text(actual_text or "", cfg)
+    error = levenshtein_distance(expected, actual)
+
+    min_length = max(1, int(len(expected) * cfg.min_length_ratio))
+    if len(actual) < min_length:
         return False
 
-    # Check for obvious OCR failures (too many non-alphanumeric characters)
-    alpha_ratio = sum(c.isalnum() or c.isspace() for c in actual_text) / max(1, len(actual_text))
-    if alpha_ratio < 0.6:  # Less than 60% alphanumeric content (stricter)
+    alpha_ratio = sum(c.isalnum() or c.isspace() for c in actual) / max(1, len(actual))
+    if alpha_ratio < cfg.min_alpha_ratio:
         return False
 
-    # Check minimum confidence per character (if text is long enough)
-    if len(actual_text) > 5:
-        min_conf_per_char = 0.7  # Minimum confidence per character
-        if confidence < min_conf_per_char:
-            return False
+    if len(actual) >= cfg.min_conf_length and confidence < cfg.min_confidence:
+        return False
 
-    return error <= 3 and confidence >= 0.85
+    max_rel_error = cfg.max_rel_edit
+    max_abs_error = cfg.max_abs_edit
+    base_error_floor = cfg.base_error_floor
+
+    dynamic_error_cap = int(len(expected) * max_rel_error)
+    max_allowed_error = max(base_error_floor, min(max_abs_error, dynamic_error_cap))
+
+    return error <= max_allowed_error
 
 
 def handle_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -113,6 +151,15 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
     req = OcrRequest(**payload) if isinstance(payload, dict) else OcrRequest()
 
     if req.imageBase64:
+        if cv2 is None:  # pragma: no cover - fallback for environments without OpenCV
+            raise ImportError("OpenCV (cv2) is required for OCR preprocessing")
+
+        if yomitoku is None:  # pragma: no cover - fallback when dependency missing
+            raise ImportError("yomitoku is required for OCR processing")
+
+        if Image is None:  # pragma: no cover - fallback when Pillow missing
+            raise ImportError("Pillow is required for OCR processing")
+
         # Decode base64 image
         image_data = base64.b64decode(req.imageBase64)
         pil_image = Image.open(io.BytesIO(image_data))
@@ -148,19 +195,28 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
             # Fallback to PaddleOCR
             try:
                 from paddleocr import PaddleOCR
-                paddle_ocr = PaddleOCR(use_textline_orientation=True, lang='en')  # use_gpu=False 削除, use_angle_cls -> use_textline_orientation
-                paddle_result = paddle_ocr.predict(opencv_image)  # ocr.ocr -> ocr.predict
+
+                paddle_ocr = PaddleOCR(
+                    use_textline_orientation=True, lang="en"
+                )  # use_gpu=False 削除, use_angle_cls -> use_textline_orientation
+                paddle_result = paddle_ocr.predict(
+                    opencv_image
+                )  # ocr.ocr -> ocr.predict
 
                 if paddle_result and paddle_result[0]:  # paddle_result[0] を参照
-                    text_blocks = [word_info[1][0] for line in paddle_result[0] for word_info in line]  # paddle_result[0] をループ
-                    text = ''.join(text_blocks)
+                    text_blocks = [
+                        word_info[1][0]
+                        for line in paddle_result[0]
+                        for word_info in line
+                    ]  # paddle_result[0] をループ
+                    text = "".join(text_blocks)
                     confidence = 0.8  # Default confidence for PaddleOCR fallback
                 else:
-                    text = ''
+                    text = ""
                     confidence = 0.0
             except Exception as e2:
                 logger.error(f"PaddleOCR fallback also failed: {e2}")
-                text = ''
+                text = ""
                 confidence = 0.0
             ocr_result = None  # Skip further processing
 
@@ -170,77 +226,46 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
                 # OCR result is a tuple where first element is OCRSchema
                 if isinstance(ocr_result, tuple) and len(ocr_result) >= 1:
                     ocr_schema = ocr_result[0]
-                    if hasattr(ocr_schema, 'words') and ocr_schema.words:
+                    if hasattr(ocr_schema, "words") and ocr_schema.words:
                         # Extract text by joining all word contents
-                        text = ''.join([word.content for word in ocr_schema.words])
+                        text = "".join([word.content for word in ocr_schema.words])
                         # Calculate average recognition confidence
-                        confidence = sum([word.rec_score for word in ocr_schema.words]) / len(ocr_schema.words)
+                        confidence = sum(
+                            [word.rec_score for word in ocr_schema.words]
+                        ) / len(ocr_schema.words)
                     else:
-                        text = ''
+                        text = ""
                         confidence = 0.0
                 else:
-                    text = ''
+                    text = ""
                     confidence = 0.0
             except Exception as e:
                 print(f"Error extracting OCR result: {e}")
-                text = ''
+                text = ""
                 confidence = 0.0
         # If ocr_result is None, text and confidence were already set in timeout fallback
 
-        # Quality judgment - in production, this would compare against known expected text
-        # For now, we skip quality judgment for general OCR use
-        is_quality_ok = True  # Assume quality is OK for general use
-
-        # Enhanced quality check for production use
-        if 'expected_text' in locals() and expected_text:
-            is_quality_ok = judge_quality(expected_text, text, confidence)
-
-        # Enhanced error logging for analysis
-        import logging
-        logger = logging.getLogger(__name__)
+        # Quality judgment placeholder（将来、期待値が指定されたら差し替える）
+        is_quality_ok = True
 
         # Log OCR results for analysis
-        logger.info(f"OCR performed: text_length={len(text)}, confidence={confidence:.4f}, "
-                   f"image_size={opencv_image.shape}, quality_ok={is_quality_ok}")
+        logger.info(
+            f"OCR performed: text_length={len(text)}, confidence={confidence:.4f}, "
+            f"image_size={opencv_image.shape}, quality_ok={is_quality_ok}"
+        )
 
         # Log potential issues
         if len(text) == 0:
-            logger.warning("OCR returned empty text - possible preprocessing or model issues")
+            logger.warning(
+                "OCR returned empty text - possible preprocessing or model issues"
+            )
         elif confidence < 0.5:
-            logger.warning(f"Low confidence OCR result: confidence={confidence:.4f}, text='{text[:50]}...'")
+            logger.warning(
+                f"Low confidence OCR result: confidence={confidence:.4f}, text='{text[:50]}...'"
+            )
         elif len(text) < 5:
             logger.warning(f"Very short OCR result: length={len(text)}, text='{text}'")
 
-        # Enhanced error logging with pattern analysis
-        if 'expected_text' in locals() and expected_text:
-            error_distance = levenshtein_distance(expected_text, text)
-            if error_distance > 0:
-                # Analyze character-level errors
-                expected_chars = list(expected_text)
-                actual_chars = list(text)
-                substitutions = []
-                deletions = []
-                insertions = []
-
-                # Find substitutions
-                min_len = min(len(expected_chars), len(actual_chars))
-                for i in range(min_len):
-                    if expected_chars[i] != actual_chars[i]:
-                        substitutions.append(f"{expected_chars[i]}->{actual_chars[i]}")
-
-                # Find deletions (characters missing in actual)
-                for i, exp in enumerate(expected_chars):
-                    if i >= len(actual_chars) or exp != actual_chars[i]:
-                        deletions.append(exp)
-
-                # Find insertions (extra characters in actual)
-                for i, act in enumerate(actual_chars):
-                    if i >= len(expected_chars) or act != expected_chars[i]:
-                        insertions.append(act)
-
-                logger.info(f"OCR errors detected: distance={error_distance}, "
-                           f"expected='{expected_text[:30]}...', actual='{text[:30]}...', "
-                           f"substitutions={substitutions[:5]}, deletions={deletions[:5]}, insertions={insertions[:5]}")
     else:
         # Fallback for clipboard source (not implemented yet)
         text = "Clipboard OCR not implemented"

@@ -6,14 +6,12 @@ Reads the OCR accuracy test results and provides insights into common error patt
 
 import json
 import os
-from collections import defaultdict, Counter
-from typing import Dict, List, Tuple
+from collections import defaultdict
+from typing import Dict
 import sys
 
 # Add src/python to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'python'))
-
-from ocr_worker.handler import levenshtein_distance
 
 def analyze_error_patterns(results_file: str) -> Dict:
     """
@@ -143,25 +141,25 @@ def print_analysis_report(analysis: Dict):
     print("OCR ERROR ANALYSIS REPORT")
     print("=" * 60)
 
-    print(f"\nOverall Performance:")
+    print("\nOverall Performance:")
     print(f"  Total Tests: {analysis['total_tests']}")
     print(f"  Passed: {analysis['passed_tests']}")
     print(f"  Failed: {analysis['failed_tests']}")
     print(f"  Success Rate: {analysis.get('passed_tests', 0) / analysis.get('total_tests', 1) * 100:.1f}%")
 
-    print(f"\nScale Performance:")
+    print("\nScale Performance:")
     for scale, perf in analysis['scale_performance'].items():
         print(f"  {scale}: {perf['passed']}/{perf['total']} passed "
               f"(Success: {perf['success_rate'] * 100:.1f}%, "
               f"Avg Error: {perf['avg_error_distance']:.1f}, Avg Conf: {perf['avg_confidence']:.2f})")
 
     if analysis['common_errors']:
-        print(f"\nMost Common Character Errors:")
+        print("\nMost Common Character Errors:")
         for error_type, count in list(analysis['common_errors'].items())[:10]:
             print(f"  {error_type}: {count} times")
 
     if analysis['error_patterns']:
-        print(f"\nDetailed Error Patterns (Failed Tests):")
+        print("\nDetailed Error Patterns (Failed Tests):")
         for i, pattern in enumerate(analysis['error_patterns'][:5]):  # Show first 5
             print(f"\n  Test {i+1} (Scale {pattern['scale']}x):")
             print(f"    Confidence: {pattern['confidence']:.3f}")

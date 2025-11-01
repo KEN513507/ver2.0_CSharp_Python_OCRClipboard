@@ -7,7 +7,8 @@ env:
 
 # テスト全部走らせる
 test:
-	python ocr_app/main.py && pytest --maxfail=1 --disable-warnings -q
+	python ocr-screenshot-app/main.py --image ./test_image.png
+	pytest -m "not slow" --maxfail=1
 
 # freezeしてrequirements.txt更新
 freeze:
@@ -30,3 +31,9 @@ check:
 	make outdated
 	make deps
 	make test
+
+# 追加のスモークテストと高速テスト実行
+smoke-and-fast-test:
+	@PYTHONPATH=src/python python -m ocr_screenshot_app.main --image test_image.png --no-clipboard --json > NUL 2> NUL
+	@echo smoke ok
+	@pytest -m "not slow" --maxfail=1
