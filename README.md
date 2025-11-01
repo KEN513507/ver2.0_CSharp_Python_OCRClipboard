@@ -133,25 +133,86 @@ Quick Start
 2) repo rootからC#アプリを起動（Pythonワーカー・オーバーレイも自動起動）:
    - `dotnet run --project src/csharp/OCRClipboard.App`
 
-# 実行方法（推奨）
+# ⚠️ プロジェクト終了通知（2025-11-01）
 
-```pwsh
-# repo root から実行
-cd C:\Users\user\Documents\Projects\ver2.0_C#+Python_OCRClipboard
-dotnet run --project src/csharp/OCRClipboard.App
+**本プロジェクトは終了しました。今後は Windows.Media.Ocr 単独構成を推奨します。**
+
+---
+
+## 終了理由
+
+### 性能要件との不一致
+- **目標**: 2回目以降のOCRを 2-3 秒以内で完了
+- **実測**: PaddleOCR（server モデル）で平均 82 秒、mobile モデルは API 不明で未検証
+- **ハードウェア制約**: i7-8550U（モバイル U 系 CPU）+ Intel UHD 620（iGPU のみ）では大型モデルの高速化は不可能
+
+### 技術選定の誤り
+- **PaddleOCR**: 初回 90 秒、常駐化後も 80 秒超（40倍遅い）
+- **Windows Snipping Tool**: GPU なしで <1 秒の高速 OCR を実現
+- **結論**: Windows.Media.Ocr API が本要件に最適（OS 統合、軽量、高速）
+
+---
+
+## 再利用可能な資産（サルベージ済み）
+
+`salvage/` ディレクトリに以下の設計パターン・知見を保管:
+
+| 分野 | 内容 | 適用価値 |
+|------|------|---------|
+| **キャプチャ** | mss スレッドセーフパターン + PIL フォールバック + DPI awareness | WPF/WinUI3 マルチスレッド対応 |
+| **テスト** | pytest slow マーク分離 + autouse モック | CI 実行時間 90% 削減 |
+| **品質判定** | Levenshtein + 記号比率 + 長さ比ヒューリスティック | スコアレス OCR の品質保証 |
+| **計測** | `[PERF]` / `[OCR]` ログ書式 | ボトルネック特定・リグレッション検出 |
+
+詳細は **`salvage/SALVAGE_INDEX.md`** を参照。
+
+---
+
+## 次回の推奨構成
+
+**C# 単独 + Windows.Media.Ocr（100 行以内で完結）**:
+
+```csharp
+// 1. WPF で矩形選択
+// 2. Windows.Graphics.Capture で画面キャプチャ
+// 3. Windows.Media.Ocr.OcrEngine で日本語 OCR（<1 秒）
+// 4. クリップボードにコピー
+
+using Windows.Media.Ocr;
+using Windows.Graphics.Imaging;
+
+var engine = OcrEngine.TryCreateFromLanguage(new Language("ja"));
+var bitmap = await LoadBitmapAsync(capturedImage);
+var result = await engine.RecognizeAsync(bitmap);
+Clipboard.SetText(result.Text);
 ```
 
-- キャプチャ画像は `logs/debug_capture.png` に保存されます（どこから実行しても一貫）。
+**PaddleOCR は不要。軽い・速い・OS 統合済み。**
+
+---
+
+## アーカイブ情報
+
+- **ブランチ**: `archive/paddle-to-wm-ocr`
+- **タグ**: `v2-archive` — "Archived: pivot to Windows.Media.Ocr single-model plan"
+- **削除済み**: Python 環境、PaddleOCR 依存、IPC レイヤー、pytest インフラ
+- **保管済み**: 再利用価値ある設計パターン（`salvage/`）
+
+---
+
+# （以下は旧 README — 参考用）
+
+## OCR Clipboard v2.0 - IPC Skeleton（終了版）
 
 Project Structure
-- `src/csharp/OCRClipboard.App` — C# console app, DTOs, and IPC client
-- `src/csharp/OCRClipboard.Overlay` — WPF overlay (single monitor), selection → PNG capture (GDI fallback)
-- `src/python/ocr_worker` — Python worker, DTOs, and handlers
+- `src/csharp/OCRClipboard.App` — C# console app, DTOs, and IPC client（削除予定）
+- `src/csharp/OCRClipboard.Overlay` — WPF overlay (single monitor), selection → PNG capture
+- ~~`src/python/ocr_worker`~~ — Python worker（削除済み）
 
 Notes
-- C#ホストは`PYTHONPATH`を`src/python`に設定し、`ocr_worker`モジュールをimport可能に。
-- Pythonワーカーは`-u`（アンバッファ）で即時出力。
-- オーバーレイ・選択は常に主画面の物理ピクセル座標で動作。
+- ~~C#ホストは`PYTHONPATH`を`src/python`に設定~~ — 削除済み
+- ~~Pythonワーカーは`-u`（アンバッファ）で即時出力~~ — 削除済み
+- オーバーレイ・選択は常に主画面の物理ピクセル座標で動作
 
 ### 30秒スモークチェック
 ```bash
