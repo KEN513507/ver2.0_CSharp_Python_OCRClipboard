@@ -1,0 +1,37 @@
+name: Build Validation
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, 'archive/**']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore ver2.0_C#+Python_OCRClipboard.sln
+      
+    - name: Build solution
+      run: dotnet build ver2.0_C#+Python_OCRClipboard.sln --configuration Release --no-restore
+      
+    # Note: テストは後で追加（現在テストプロジェクト.csprojが未整備）
+    # - name: Run fast tests (exclude SlowOCR)
+    #   run: dotnet test --filter "Category!=SlowOCR" --configuration Release --no-build --verbosity normal
+      
+    - name: Check for warnings
+      run: |
+        $buildLog = dotnet build ver2.0_C#+Python_OCRClipboard.sln --configuration Release --no-restore 2>&1
+        if ($buildLog -match "warning") {
+          Write-Host "::warning::Build contains warnings"
+        }

@@ -129,10 +129,23 @@ Python 版から抜き出した再利用素材。詳細は `salvage/SALVAGE_INDE
 | `feature/*` | 新機能開発 | 今後作成 |
 | `hotfix/*` | 緊急修正 | 今後作成 |
 
-### CI/CD（予定）
-- **GitHub Actions**: `dotnet build` + `dotnet test`（fast テストのみ）
-- **Slow テスト**: 手動実行（`Category!=SlowOCR` フィルタ）
-- **リリース**: GitHub Releases で単一実行ファイル配布
+### CI/CD（実装済み）
+
+**ビルド検証** (`.github/workflows/build.yml`):
+- トリガー: すべてのpush/PR
+- 実行内容: `dotnet restore` + `dotnet build --configuration Release`
+- 制限: テスト実行不可（Windows.Media.OcrがServer 2022非対応）
+
+**リリース自動化** (`.github/workflows/release.yml`):
+- トリガー: `v*.*.*` タグpush
+- 成果物: 単一実行ファイル（self-contained, PublishSingleFile）
+- 配布: GitHub Releases自動公開
+
+**実機テスト**:
+- Slowテスト（`Category=SlowOCR`）は手動実行のみ
+- CI対応にはSelf-hosted Runner（Windows 10 + 日本語OCRパック）が必要
+
+詳細: `docs/CI_CD_STRATEGY.md`
 
 ---
 

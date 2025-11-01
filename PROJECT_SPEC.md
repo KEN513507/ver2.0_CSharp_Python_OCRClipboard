@@ -1,53 +1,59 @@
-python -m unittest discover# OCR Clipboard v2.0 開発仕様
+# OCR Clipboard v2.0 開発仕様（Windows.Media.Ocr版）
 
 ## 概要
-- C#（WinUI3）＋Pythonの二層構成
-- 10秒以内・誤差≤3文字の品質制約（強化）
-- テスト画像セット（A1〜E1）・期待語句は test_cases.json に準拠
-- プライマリ画面のみ対応（セカンダリ画面は今後検討）
+- **構成**: C#単体（.NET 8、Windows.Media.Ocr）
+- **性能目標**: OCR処理100ms以内（2回目以降）
+- **対応環境**: Windows 10 1809+、DPI 100%、Display 1のみ
+- **起動形態**: デスクトップアイコン → 常駐トレイ → ホットキーで範囲選択
 
 ---
 
-## DFD（Data Flow Diagram）
-
-### レベル0（コンテキスト図）
+## アーキテクチャ（簡略版）
 
 ```
-┌────────────┐           ┌──────────────┐
-│    ユーザー   │──操作──▶│  Capture/OCR  │──テキスト→クリップボード/保存
-└────────────┘           └──────────────┘
-         ▲                         │
-         └────ログ/結果の確認───────┘
+[ユーザー] Ctrl+Shift+O
+    ↓
+[C# App: OCRClipboard.App]
+    ├─ OverlayWindow (WPF) → 矩形選択
+    ├─ CaptureService (Win32 GDI) → Bitmap取得
+    ├─ WindowsMediaOcrEngine → OCR実行（100ms）
+    └─ Clipboard → テキスト自動コピー
 ```
 
-- システム境界内に C# フロントエンド（WinUI3）と Python OCR バックエンド。
-- 出力はクリップボード貼り付け or ファイル保存、ログ記録。
+**廃止**: Python OCRワーカー、IPC、JSON-RPC（PaddleOCRは性能不足で削除）
 
-### レベル1（モジュール分解）
+---
+
+## 機能要件
+
+| ID | 要件 | 状態 |
+|----|------|------|
+| F-1 | デスクトップアイコン起動で常駐トレイ化 | 未実装 |
+| F-2 | ホットキー（Ctrl+Shift+O）で矩形選択開始 | 部分実装 |
+| F-3 | Display 1（プライマリ）限定のキャプチャ | ✅完了 |
+| F-4 | OCR結果を自動的にクリップボードへコピー | ✅完了 |
+| F-5 | クロップ妥当性チェック（薄すぎ警告） | ✅完了 |
+| F-6 | 上下パディング追加（下端欠け対策） | ✅完了 |
+
+## 非機能要件
+
+| ID | 要件 | 実測値 |
+|----|------|--------|
+| NF-1 | OCR処理時間 < 200ms | ✅ 72-155ms |
+| NF-2 | 言語: 日本語優先、英語フォールバック | ✅ lang='ja' |
+| NF-3 | DPI 100%専用 | ✅ 固定 |
+| NF-4 | Display 1専用 | ✅ MONITOR_DEFAULTTOPRIMARY |
+
+---
+
+## 運用ログ形式
 
 ```
-[外部] ユーザー
-   │ Hotkey
-   ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│             C# Frontend (WinUI3) & Native Capture                         │
-│                                                                            │
-│ P1 ホットキー監視 ──▶ P2 モニタ特定 ──▶ P3 オーバーレイ&矩形選択             │
-│     │設定読込(D1)         │(GetCursorPos/MonitorFromPoint)                 │
-│     ▼                     ▼                                                │
-│ P4 モニタキャプチャ(Windows.Graphics.Capture) ─▶ P5 前処理/切抜              │
-│                                          │                                 │
-│                                          ├─▶ D3 画像キャッシュ               │
-│                                          ▼                                 │
-│                             P6 OCRディスパッチ(IPC: NamedPipe/gRPC)        │
-│                                          │                                 │
-│                                          ▼                                 │
-│                             Python Backend (yomitoku 等)                    │
-│                             P7 推論 → P8 後処理(正規化/半全角/句読点)         │
-│                                          │                                 │
-│                                          ├─▶ D4 結果ログ/品質 (JSON/CSV)     │
-│                                          └─▶ P9 出力(Clipboard/保存)         │
-└────────────────────────────────────────────────────────────────────────────┘
+[OCR] Engine=Windows.Media.Ocr lang='ja'
+[PERF] capture=3716ms convert=115ms ocr=72ms total=4000ms
+[OCR] n_fragments=16 mean_conf=1.00 sample="をな帑ｿ｡鬆ｼ蠎ｦ100%と表示される・オ"
+[CLIPBOARD] copied=true length=18
+```
                        ▲                 ▲
                        │                 │
                    D1 設定/プリセット   D2 テストケース(期待語句/正解) ← テスト時のみ使用

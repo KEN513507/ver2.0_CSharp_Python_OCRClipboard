@@ -1,52 +1,33 @@
-
 # TODO統合リスト（2025-11-01 更新）
 
-## 目的：ファイルの可用性・完全性・整合性の向上
+## 現状：Windows.Media.Ocr 版への移行完了
 
-### 1. OCRコア・品質・座標・DPI関連
-- [x] 画像パス修正（絶対パス化、main.py/ocr_worker/main.py）
-- [x] API修正（ocr.ocr→ocr.predict、use_angle_cls→use_textline_orientation）
-- [ ] 画像前処理強化（handler.py、フィルタ追加・サンプル画像テスト）
-- [ ] OCRパラメータ調整（PaddleOCR設定・言語モデル最適化）
-- [ ] stdin/IPC処理強化（空行無視・JSONエラー処理）
-- [x] judge_quality厳格化（QualityConfig導入・ENV上書き・正規化）
-- [x] 品質判定追加制約（英数字比率・最小長・相対/絶対誤差・信頼度）
-- [x] DPI起動時のAwareness向上（Windows、main.pyに設定追加）
-- [ ] DPIスケール取得・検証
-- [ ] 座標変換ロジック分離
-- [ ] OverlayWindowの矩形選択補正
-- [ ] GraphicsCaptureItemのtransform確認
-- [ ] JsonRpcClientの座標受け渡し検証
-- [ ] Direct3DDevice生成のモニター依存性調査
-- [ ] HMONITOR列挙・選択ロジックのテスト
-- [ ] セカンダリ画面の黒画像・白線原因特定
-- [ ] capture_diagnostics.jsonl出力実装
-- [ ] TEST-A1中央表示の自動検証
-- [ ] DPI/座標/セカンダリディスプレイ対応
-- [ ] パフォーマンス最適化（10秒未満）
-- [ ] タイムアウト・フォールバック追加
+**アーキテクチャ変更**: PaddleOCR（Python）→ Windows.Media.Ocr（C#単体）
 
-### 2. ログ・エラー・テスト・ドキュメント
-- [ ] 構造化ログ設計
-- [ ] OCR結果の誤差ログ出力
-- [ ] 詳細なOCRエラーログ・パターン分析
-- [ ] 誤認識パターンの可視化ログ
-- [ ] run_all_coordinate_tests.ps1のシナリオ分岐強化
-- [ ] run_all_coordinate_tests.ps1の自動判定追加
-- [ ] テストパターンHTMLのズレ可視化強化
-- [ ] 全体リファクタリング・コード整理
-- [ ] 依存（mss, pyperclip）インストール
-- [x] テスト修正（mock・期待値更新：tk/mssスタブ、_mock_paddleocr、_mock_ocr_fast）
-- [ ] OCR精度テスト（DPI 100/125/150%）
-- [x] README/PROJECT_SPECの現状・制限明記（QualityConfig、capture安定化、slow運用）
+### 完了事項 ✅
+- [x] Windows.Media.Ocr エンジン実装（日本語対応、100ms以下）
+- [x] Display 1（プライマリモニター）限定のオーバーレイ
+- [x] クロップ妥当性チェック（高さ<40px、幅/高さ>25 で警告）
+- [x] 上下8pxパディング追加（下端欠け対策）
+- [x] 言語初期化診断（日本語以外で警告）
+- [x] 固定フォーマット運用ログ（[PERF]/[OCR]/[CLIPBOARD]）
+- [x] 3回連続実行で性能検証（OCR: 72-155ms）
 
-### 3. 進捗・運用
-- [x] 画像パス・API修正済み→日本語OCR安定動作
-- [x] QualityConfig 導入・handler差し替え（ENV/正規化/閾値）
-- [x] capture: mss は都度 with 生成＋PIL.ImageGrab フォールバック
-- [x] Windows: DPI awareness 設定
-- [x] テスト高速化: 非 slow は OCR をモック（_mock_ocr_fast）／ slow は実機
-- [ ] 次：前処理強化・座標/拡張系・DTO経由のQualityConfig上書き
+### 次のステップ 🎯
+1. **トレイ常駐化**
+   - [ ] System.Windows.Forms.NotifyIcon 実装
+   - [ ] ホットキー登録（Win32 RegisterHotKey、例: Ctrl+Shift+O）
+   - [ ] ESCキーで終了
+   - [ ] ホットキー衝突検知＆自動フォールバック
+
+2. **品質向上（任意）**
+   - [ ] クリップボード二重書き込み抑制（0.5秒間同一テキスト無視）
+   - [ ] 最小長・記号比率ヒューリスティック（QualityConfig軽量版）
+
+3. **ドキュメント整備**
+   - [x] README更新（Windows.Media.Ocr版の性能データ反映）
+   - [x] TODO更新（完了項目整理）
+   - [ ] PROJECT_SPEC更新（DFD簡略化、C#単体構成へ）
 
 ---
 

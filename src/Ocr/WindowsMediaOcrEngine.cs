@@ -18,6 +18,7 @@ namespace Ocr;
 public sealed class WindowsMediaOcrEngine : IOcrEngine
 {
     private readonly OcrEngine _engine;
+    private readonly string _languageTag;
 
     public WindowsMediaOcrEngine()
     {
@@ -26,17 +27,27 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         if (OcrEngine.IsLanguageSupported(jpLang))
         {
             _engine = OcrEngine.TryCreateFromLanguage(jpLang);
+            _languageTag = jpLang.LanguageTag;
         }
         else
         {
             // 日本語が使えない場合は英語
             var enLang = new Windows.Globalization.Language("en");
             _engine = OcrEngine.TryCreateFromLanguage(enLang);
+            _languageTag = enLang.LanguageTag;
         }
 
         if (_engine == null)
         {
             throw new InvalidOperationException("Windows.Media.Ocr がサポートされていません。");
+        }
+
+        // 言語初期化の自己診断
+        var lang = _engine.RecognizerLanguage?.LanguageTag ?? "(unknown)";
+        Console.Error.WriteLine($"[OCR] Engine=Windows.Media.Ocr lang='{lang}'");
+        if (!lang.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine("[WARN] OCR language is not Japanese; accuracy may drop.");
         }
     }
 
@@ -74,6 +85,11 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         inferenceWatch.Stop();
         
         softwareBitmap.Dispose();
+
+        if (ocrResult.TextAngle.HasValue)
+        {
+            Console.WriteLine($"[C#] OcrResult angle={ocrResult.TextAngle.Value:F2}°");
+        }
 
         ct.ThrowIfCancellationRequested();
 

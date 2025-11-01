@@ -36,8 +36,9 @@ public partial class OverlayWindow : Window
 
         SetWindowStyles(hwnd);
 
-        if (!Win32.GetCursorPos(out var pt)) { Close(); return; }
-        _hMonitor = Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
+        // Force primary monitor only (Display 1)
+        var primaryPt = new Win32.POINT { X = 0, Y = 0 };
+        _hMonitor = Win32.MonitorFromPoint(primaryPt, Win32.MONITOR_DEFAULTTOPRIMARY);
         _mi = new Win32.MONITORINFO();
         if (!Win32.GetMonitorInfo(_hMonitor, _mi)) { Close(); return; }
 

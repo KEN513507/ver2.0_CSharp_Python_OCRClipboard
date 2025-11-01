@@ -20,6 +20,8 @@ internal static class Win32
         public int dwFlags;
     }
 
+    public const int MONITOR_DEFAULTTONULL = 0;
+    public const int MONITOR_DEFAULTTOPRIMARY = 1;
     public const int MONITOR_DEFAULTTONEAREST = 2;
     public const int WS_EX_LAYERED = 0x00080000;
     public const int WS_EX_TRANSPARENT = 0x00000020;

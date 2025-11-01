@@ -1,0 +1,50 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Publish self-contained executable
+      run: |
+        dotnet publish src/csharp/OCRClipboard.App/OCRClipboard.App.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output ./publish `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=true
+          
+    - name: Create release archive
+      run: |
+        Compress-Archive -Path ./publish/* -DestinationPath OCRClipboard-${{ github.ref_name }}-win-x64.zip
+        
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: OCRClipboard-${{ github.ref_name }}
+        path: OCRClipboard-${{ github.ref_name }}-win-x64.zip
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: OCRClipboard-${{ github.ref_name }}-win-x64.zip
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
