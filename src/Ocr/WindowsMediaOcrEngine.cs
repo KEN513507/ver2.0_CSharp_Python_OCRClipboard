@@ -19,6 +19,9 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
 {
     private readonly OcrEngine _engine;
     private readonly string _languageTag;
+    
+    // デバッグモード制御（環境変数 OCR_DEBUG=1 で有効化）
+    private static readonly bool DebugMode = Environment.GetEnvironmentVariable("OCR_DEBUG") == "1";
 
     public WindowsMediaOcrEngine()
     {
@@ -42,12 +45,15 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
             throw new InvalidOperationException("Windows.Media.Ocr がサポートされていません。");
         }
 
-        // 言語初期化の自己診断
-        var lang = _engine.RecognizerLanguage?.LanguageTag ?? "(unknown)";
-        Console.Error.WriteLine($"[OCR] Engine=Windows.Media.Ocr lang='{lang}'");
-        if (!lang.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+        // 言語初期化の自己診断（デバッグモード時のみ）
+        if (DebugMode)
         {
-            Console.Error.WriteLine("[WARN] OCR language is not Japanese; accuracy may drop.");
+            var lang = _engine.RecognizerLanguage?.LanguageTag ?? "(unknown)";
+            Console.Error.WriteLine($"[OCR] Engine=Windows.Media.Ocr lang='{lang}'");
+            if (!lang.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("[WARN] OCR language is not Japanese; accuracy may drop.");
+            }
         }
     }
 
@@ -86,7 +92,7 @@ public sealed class WindowsMediaOcrEngine : IOcrEngine
         
         softwareBitmap.Dispose();
 
-        if (ocrResult.TextAngle.HasValue)
+        if (DebugMode && ocrResult.TextAngle.HasValue)
         {
             Console.WriteLine($"[C#] OcrResult angle={ocrResult.TextAngle.Value:F2}°");
         }

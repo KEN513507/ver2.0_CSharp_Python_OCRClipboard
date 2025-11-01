@@ -19,6 +19,9 @@ public partial class OverlayWindow : Window
     private Rect _selection;
     private double _dpiScaleX = 1.0;
     private double _dpiScaleY = 1.0;
+    
+    // デバッグモード制御（環境変数 OCR_DEBUG=1 で有効化）
+    private static readonly bool DebugMode = Environment.GetEnvironmentVariable("OCR_DEBUG") == "1";
 
     public SelectionResult? Result { get; private set; }
 
@@ -170,6 +173,8 @@ public partial class OverlayWindow : Window
 
     private void LogMonitorAndWindowState()
     {
+        if (!DebugMode) return; // デバッグモードOFFなら何も出力しない
+        
         Console.WriteLine("[COORD] === Monitor & Window Coordinates ===");
         Console.WriteLine($"[COORD] rcMonitor (physical px): Left={_mi.rcMonitor.Left}, Top={_mi.rcMonitor.Top}, Right={_mi.rcMonitor.Right}, Bottom={_mi.rcMonitor.Bottom}");
         Console.WriteLine($"[COORD] Monitor size (physical): {_mi.rcMonitor.Right - _mi.rcMonitor.Left} x {_mi.rcMonitor.Bottom - _mi.rcMonitor.Top}");
@@ -187,6 +192,8 @@ public partial class OverlayWindow : Window
 
     private void LogSelection(Rect selectionDip)
     {
+        if (!DebugMode) return; // デバッグモードOFFなら何も出力しない
+        
         Console.WriteLine("[SELECT] === User Selection ===");
         Console.WriteLine($"[SELECT] Logical rect (DIPs): X={selectionDip.X:F2}, Y={selectionDip.Y:F2}, W={selectionDip.Width:F2}, H={selectionDip.Height:F2}");
         Console.WriteLine($"[SELECT] Window offset (DIPs as stored): Left={Left:F2}, Top={Top:F2}");

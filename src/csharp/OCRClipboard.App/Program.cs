@@ -8,6 +8,9 @@ namespace OCRClipboard.App;
 
 public partial class Program
 {
+    // デバッグモード制御（環境変数 OCR_DEBUG=1 で有効化）
+    private static readonly bool DebugMode = Environment.GetEnvironmentVariable("OCR_DEBUG") == "1";
+    
     public static async Task Main(string[] args)
     {
         // CLI文字化け対策: UTF-8エンコーディング強制
@@ -21,7 +24,7 @@ public partial class Program
             return;
         }
 
-        Console.WriteLine("[C#] Starting Windows.Media.Ocr engine...");
+        if (DebugMode) Console.WriteLine("[C#] Starting Windows.Media.Ocr engine...");
 
         var engine = new WindowsMediaOcrEngine();
 
@@ -128,7 +131,7 @@ public partial class Program
                 $"[OCR] n_fragments={ocrResult.FragmentCount} mean_conf={ocrResult.MeanConfidence:F2} sample=\"{sample}\"");
         }
 
-        Console.WriteLine("[C#] Done.");
+        if (DebugMode) Console.WriteLine("[C#] Done.");
     }
 }
 
@@ -165,18 +168,18 @@ public partial class Program
             var bytes = Convert.FromBase64String(base64);
             File.WriteAllBytes(path, bytes);
 
-            if (File.Exists(path))
+            if (DebugMode && File.Exists(path))
             {
                 Console.WriteLine($"[C#] Debug capture saved: {path}");
             }
-            else
+            else if (DebugMode)
             {
                 Console.Error.WriteLine("[C#] Debug capture save attempted, but file not found afterwards.");
             }
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[C#] Failed to save debug capture: {ex.Message}");
+            if (DebugMode) Console.Error.WriteLine($"[C#] Failed to save debug capture: {ex.Message}");
         }
     }
     
