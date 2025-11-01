@@ -7,8 +7,9 @@ namespace Tests.Slow;
 [Collection("SlowOCR")]
 public sealed class WindowsMediaOcrIntegrationTests
 {
+    [Fact(Skip = "Windows.Media.Ocr 実装を追加したタイミングで有効化")]
     [SlowOcr]
-    [Fact(Skip = "Windows.Media.Ocr 実装を追加したタイミングで有効化")] 
+    [Trait("Category", "SlowOCR")]
     public Task RunRealOcrSmokeAsync()
     {
         // TODO: Windows.Media.Ocr の実機テストを実装する。
