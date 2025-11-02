@@ -4,12 +4,14 @@
 import sys
 import json
 import logging
-import os
-import time
-import numpy as np
-from typing import Any, Dict
 
-from .handler import handle_health_check, handle_ocr_perform, handle_ping
+from .handler import (
+    ensure_warmup_from_env,
+    handle_health_check,
+    handle_ocr_perform,
+    handle_ping,
+    handle_warmup,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,36 +19,6 @@ logging.basicConfig(
     stream=sys.stderr  # ← stderr に出力してノイズ分離
 )
 logger = logging.getLogger(__name__)
-
-
-def warmup_paddle_ocr():
-    """初期ウォームアップ：PaddleOCR を1枚ダミー画像で実行してモデルをロード"""
-    try:
-        from paddleocr import PaddleOCR
-        
-        lang_code = os.environ.get("OCR_PADDLE_LANG", "japan")
-        use_cls = os.environ.get("OCR_PADDLE_USE_CLS", "0") in ("1", "true", "yes")
-        
-        logger.info(f"Warmup: Initializing PaddleOCR (lang={lang_code}, use_textline_orientation={use_cls})")
-        t0 = time.perf_counter()
-        
-        ocr = PaddleOCR(lang=lang_code, use_textline_orientation=use_cls)
-        
-        # ダミー画像作成（100x100 白背景に黒文字 "Test"）
-        dummy_img = np.ones((100, 100, 3), dtype=np.uint8) * 255
-        
-        # ダミー実行
-        _ = ocr.ocr(dummy_img)
-        
-        t1 = time.perf_counter()
-        logger.info(f"Warmup: PaddleOCR ready in {t1-t0:.2f}s")
-        
-        return True
-    except Exception as e:
-        logger.error(f"Warmup failed: {e}")
-        return False
-
-
 def main():
     """JSON-RPC main loop: read requests from stdin, write responses to stdout"""
     # 起動識別子を stdout に出力（これで __main__.py が実行されたことが分かる）
@@ -54,8 +26,18 @@ def main():
     logger.info("OCR Worker started via __main__.py")
     
     # 初期ウォームアップ
-    warmup_success = warmup_paddle_ocr()
-    print(json.dumps({"_warmup": "complete", "success": warmup_success}), flush=True)
+    try:
+        warmed = ensure_warmup_from_env(force=True)
+        warmed_langs = sorted({lang for lang, _ in warmed})
+        print(json.dumps({"_warmup": "complete", "langs": warmed_langs}), flush=True)
+        logger.info(
+            "Warmup completed for langs=%s",
+            ", ".join(warmed_langs) if warmed_langs else "none",
+        )
+    except Exception as exc:
+        logger.error("Initial warmup failed: %s", exc, exc_info=True)
+        print(json.dumps({"_warmup": "failed", "error": str(exc)}), flush=True)
+        raise
     
     for line in sys.stdin:
         line = line.strip()
@@ -78,6 +60,8 @@ def main():
                 result = handle_health_check(payload)
             elif req_type == "ping":
                 result = handle_ping(payload)
+            elif req_type in ("warmup", "ocr.warmup"):
+                result = handle_warmup(payload)
             elif req_type in ("ocr_perform", "ocr.perform"):
                 result = handle_ocr_perform(payload)
             else:

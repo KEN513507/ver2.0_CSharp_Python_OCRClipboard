@@ -4,7 +4,7 @@ import base64
 import io
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 import cv2
 from PIL import Image
@@ -14,6 +14,9 @@ from .dto import HealthCheck, HealthOk, OcrRequest, OcrResponse
 
 logger = logging.getLogger(__name__)
 _PADDLE_VERSION_CACHE: Optional[str] = None
+_PADDLE_CACHE: Dict[Tuple[str, bool], Any] = {}
+_WARMED_KEYS: Set[Tuple[str, bool]] = set()
+_DUMMY_IMAGE = np.full((64, 256, 3), 255, dtype=np.uint8)
 
 
 def _get_paddle_version() -> str:
@@ -28,6 +31,88 @@ def _get_paddle_version() -> str:
     except Exception:
         _PADDLE_VERSION_CACHE = "paddleocr-unavailable"
     return _PADDLE_VERSION_CACHE
+
+
+def _resolve_use_cls(doc_pipeline: str, variant: str) -> bool:
+    env_value = str(os.environ.get("OCR_PADDLE_USE_CLS", "0")).lower()
+    use_cls = env_value in ("1", "true", "yes", "on")
+    if doc_pipeline == "off":
+        use_cls = False
+    if variant != "server":
+        use_cls = False
+    return use_cls
+
+
+def _get_paddle_engine(lang_code: str, use_cls: bool):
+    key = (lang_code.lower(), use_cls)
+    if key not in _PADDLE_CACHE:
+        from paddleocr import PaddleOCR
+
+        # 環境変数からハイパーパラメータを読み取り
+        det_db_thresh = float(os.environ.get("OCR_PADDLE_DET_DB_THRESH", "0.3"))
+        det_db_box_thresh = float(os.environ.get("OCR_PADDLE_DET_BOX_THRESH", "0.6"))
+        det_db_unclip_ratio = float(os.environ.get("OCR_PADDLE_DET_UNCLIP_RATIO", "1.5"))
+        det_limit_side_len = int(os.environ.get("OCR_PADDLE_DET_LIMIT_SIDE", "960"))
+        rec_batch_num = int(os.environ.get("OCR_PADDLE_REC_BATCH_NUM", "6"))
+        drop_score = float(os.environ.get("OCR_PADDLE_DROP_SCORE", "0.5"))
+        
+        logger.info(
+            "Initializing PaddleOCR: lang=%s, use_cls=%s, "
+            "det_db_thresh=%.2f, det_box_thresh=%.2f, unclip_ratio=%.1f, "
+            "det_limit=%d, rec_batch=%d, drop_score=%.2f",
+            lang_code, use_cls, det_db_thresh, det_db_box_thresh, det_db_unclip_ratio,
+            det_limit_side_len, rec_batch_num, drop_score
+        )
+        
+        _PADDLE_CACHE[key] = PaddleOCR(
+            use_textline_orientation=use_cls,
+            lang=lang_code,
+            show_log=False,
+            det_db_thresh=det_db_thresh,
+            det_db_box_thresh=det_db_box_thresh,
+            det_db_unclip_ratio=det_db_unclip_ratio,
+            det_limit_side_len=det_limit_side_len,
+            rec_batch_num=rec_batch_num,
+            drop_score=drop_score,
+        )
+    return _PADDLE_CACHE[key]
+
+
+def ensure_warmup_languages(
+    langs: Iterable[str],
+    *,
+    use_cls: Optional[bool] = None,
+    force: bool = False,
+) -> Set[Tuple[str, bool]]:
+    doc_pipe = os.environ.get("OCR_DOC_PIPELINE", "off").lower()
+    variant = os.environ.get("OCR_PADDLE_VARIANT", "mobile").lower()
+    effective_use_cls = _resolve_use_cls(doc_pipe, variant) if use_cls is None else use_cls
+
+    warmed = set()
+    for lang in langs:
+        lang_norm = (lang or "").strip()
+        if not lang_norm:
+            continue
+        key = (lang_norm.lower(), effective_use_cls)
+        if key in _WARMED_KEYS and not force:
+            warmed.add(key)
+            continue
+
+        engine = _get_paddle_engine(lang_norm, effective_use_cls)
+        engine.ocr(_DUMMY_IMAGE)
+        _WARMED_KEYS.add(key)
+        warmed.add(key)
+        logger.info("Warmup completed: lang=%s use_cls=%s", lang_norm, effective_use_cls)
+
+    return warmed
+
+
+def ensure_warmup_from_env(force: bool = False) -> Set[Tuple[str, bool]]:
+    langs_env = os.environ.get("OCR_PADDLE_WARMUP_LANGS", "japan,en")
+    langs = [part.strip() for part in langs_env.split(",") if part.strip()]
+    if not langs:
+        return set()
+    return ensure_warmup_languages(langs, force=force)
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -127,16 +212,50 @@ def handle_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
     return HealthOk(message="ok").__dict__
 
 
+def handle_warmup(payload: Dict[str, Any]) -> Dict[str, Any]:
+    langs = None
+    force = False
+    if isinstance(payload, dict):
+        langs = payload.get("langs")
+        force = bool(payload.get("force", False))
+
+    resolved_langs: Optional[Iterable[str]] = None
+    if isinstance(langs, str):
+        resolved_langs = [part.strip() for part in langs.split(",") if part.strip()]
+    elif isinstance(langs, (list, tuple, set)):
+        resolved_langs = [str(part).strip() for part in langs if str(part).strip()]
+
+    try:
+        if resolved_langs:
+            warmed = ensure_warmup_languages(resolved_langs, force=force)
+        else:
+            warmed = ensure_warmup_from_env(force=force)
+
+        return {
+            "ok": True,
+            "langs": sorted({lang for lang, _ in warmed}),
+            "use_cls": any(flag for _, flag in warmed),
+        }
+    except Exception as exc:
+        logger.error("Warmup request failed: %s", exc, exc_info=True)
+        return {
+            "ok": False,
+            "error": str(exc),
+        }
+
+
 def handle_ping(payload: Dict[str, Any]) -> Dict[str, Any]:
     ts = None
     if isinstance(payload, dict):
         ts = payload.get("ts")
     try:
+        warmed_langs = sorted({lang for lang, _ in _WARMED_KEYS})
         return {
             "ok": True,
             "ts": ts,
             "pid": os.getpid(),
-            "ver": _get_paddle_version()
+            "ver": _get_paddle_version(),
+            "warmed": warmed_langs,
         }
     except Exception as exc:  # Fallback just in case
         logger.debug("Ping handler fell back: %s", exc, exc_info=True)
@@ -145,6 +264,7 @@ def handle_ping(payload: Dict[str, Any]) -> Dict[str, Any]:
             "ts": ts,
             "pid": os.getpid(),
             "ver": "unknown",
+            "warmed": sorted({lang for lang, _ in _WARMED_KEYS}),
             "error": str(exc)
         }
 
@@ -165,24 +285,21 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         # Perform OCR using PaddleOCR with environment variable control
         try:
-            from paddleocr import PaddleOCR
-            
-            # 環境変数で軽量化制御
             doc_pipe = os.environ.get("OCR_DOC_PIPELINE", "off").lower()
-            variant  = os.environ.get("OCR_PADDLE_VARIANT", "mobile").lower()
-            lang_code = os.environ.get("OCR_PADDLE_LANG", "japan")
-            use_cls  = os.environ.get("OCR_PADDLE_USE_CLS", "0") in ("1", "true", "yes")
-            
-            # ドキュメント系を切るなら強制で angle_cls を無効
-            if doc_pipe == "off":
-                use_cls = False
-            # server以外（=mobile系）を選んだら angle_cls はオフ（軽量＆確実）
-            if variant != "server":
-                use_cls = False
-            
-            logger.info(f"PaddleOCR init: lang={lang_code}, use_textline_orientation={use_cls}, variant={variant}")
-            
-            paddle_ocr = PaddleOCR(use_textline_orientation=use_cls, lang=lang_code)
+            variant = os.environ.get("OCR_PADDLE_VARIANT", "mobile").lower()
+
+            req_lang = (req.language or "").strip().lower()
+            if req_lang in ("", "auto"):
+                req_lang = ""
+            lang_code = req_lang or os.environ.get("OCR_PADDLE_LANG", "japan")
+            if lang_code.lower() == "eng":
+                lang_code = "en"
+            elif lang_code.lower() in {"jp", "ja"}:
+                lang_code = "japan"
+            use_cls = _resolve_use_cls(doc_pipe, variant)
+
+            ensure_warmup_languages([lang_code], use_cls=use_cls)
+            paddle_ocr = _get_paddle_engine(lang_code, use_cls)
             paddle_result = paddle_ocr.ocr(opencv_image)
 
             if paddle_result and paddle_result[0]:

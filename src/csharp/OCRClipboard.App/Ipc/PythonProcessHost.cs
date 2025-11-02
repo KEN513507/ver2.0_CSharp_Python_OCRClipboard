@@ -77,6 +77,7 @@ public sealed class PythonProcessHost : IDisposable
         start.Environment["OCR_PADDLE_VARIANT"] = Environment.GetEnvironmentVariable("OCR_PADDLE_VARIANT") ?? "mobile";
         start.Environment["OCR_PADDLE_USE_CLS"] = Environment.GetEnvironmentVariable("OCR_PADDLE_USE_CLS") ?? "0";
         start.Environment["OCR_PADDLE_LANG"] = Environment.GetEnvironmentVariable("OCR_PADDLE_LANG") ?? "japan";
+        start.Environment["OCR_PADDLE_WARMUP_LANGS"] = Environment.GetEnvironmentVariable("OCR_PADDLE_WARMUP_LANGS") ?? "japan,en";
 
         _proc = new Process { StartInfo = start, EnableRaisingEvents = true };
         _proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Error.WriteLine($"[pyerr] {e.Data}"); };

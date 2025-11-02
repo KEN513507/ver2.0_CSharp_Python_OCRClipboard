@@ -17,4 +17,15 @@ jobs:
       - name: Ensure legacy worker is absent
         shell: pwsh
         run: ./tools/precheck_no_main_py.ps1
+      - name: Warm up PaddleOCR models (optional)
+        shell: pwsh
+        run: |
+          $python = if ($env:OCR_PYTHON_EXE) { $env:OCR_PYTHON_EXE } else { ".\.venv-ocr27\Scripts\python.exe" }
+          if (Test-Path $python) {
+              Write-Host "Using Python at $python for model warmup"
+              & $python tools/paddle_warmup.py
+          }
+          else {
+              Write-Host "Skipping Paddle warmup (Python interpreter not found)."
+          }
       - run: dotnet format --verify-no-changes

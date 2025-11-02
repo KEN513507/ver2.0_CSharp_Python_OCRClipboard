@@ -9,4 +9,5 @@ public sealed class PongResponse
     [JsonPropertyName("pid")] public int Pid { get; set; }
     [JsonPropertyName("ver")] public string? Version { get; set; }
     [JsonPropertyName("error")] public string? Error { get; set; }
+    [JsonPropertyName("warmed")] public string[]? WarmedLangs { get; set; }
 }

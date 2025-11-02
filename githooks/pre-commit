@@ -1,7 +1,14 @@
-#!/usr/bin/env bash
-set -euo pipefail
+# scripts/push_changes.ps1
+param(
+    [string]$Message = "work in progress",
+    [string]$Remote  = "origin"
+)
 
-repo_root="$(git rev-parse --show-toplevel)"
+git add -A
+git status
 
-# guard against accidental legacy worker resurrection
-"${repo_root}/tools/precheck_no_main_py.sh"
+$branch = (git rev-parse --abbrev-ref HEAD).Trim()
+if (-not $branch) { throw "現在のブランチを取得できませんでした。" }
+
+git commit -m $Message
+git push $Remote $branch

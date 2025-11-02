@@ -37,6 +37,54 @@ from ocr_worker.handler import levenshtein_distance  # noqa: E402
 # ===========================
 _YOMITOKU = None
 _PADDLE_OCR_CACHE: Dict[str, Any] = {}
+_CUSTOM_DICT_CACHE: Dict[str, str] = {}
+
+
+def _ensure_custom_dict(lang: str) -> Optional[str]:
+    """言語別ベース辞書をコピーして罫線追加"""
+    global _CUSTOM_DICT_CACHE
+    
+    if lang in _CUSTOM_DICT_CACHE:
+        return _CUSTOM_DICT_CACHE[lang]
+    
+    try:
+        import paddleocr
+        base = pathlib.Path(paddleocr.__file__).resolve().parent
+    except Exception:
+        _CUSTOM_DICT_CACHE[lang] = None
+        return None
+    
+    # 言語別ベース辞書パス
+    if lang.startswith("japan"):
+        src = base / "ppocr" / "utils" / "dict" / "japan_dict.txt"
+    else:
+        src = base / "ppocr" / "utils" / "dict" / "en_dict.txt"
+    
+    if not src.exists():
+        _CUSTOM_DICT_CACHE[lang] = None
+        return None
+    
+    dst_dir = ROOT / "tmp"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / f"{lang}_dict_custom.txt"
+    
+    # 罫線文字（BOX-DRAWING主要文字）
+    boxdraw = "─│┌┐├┤┬┴└┘╭╮╰╯╔╗╚╝║═╠╣╦╩╬"
+    
+    seen = set()
+    with src.open("r", encoding="utf-8") as f, dst.open("w", encoding="utf-8") as g:
+        for line in f:
+            tok = line.rstrip("\n")
+            if tok:
+                seen.add(tok)
+            g.write(line)
+        for ch in boxdraw:
+            if ch not in seen:
+                g.write(ch + "\n")
+    
+    _CUSTOM_DICT_CACHE[lang] = str(dst)
+    print(f"[INIT] Custom dict: {dst} ({len(seen)+len([c for c in boxdraw if c not in seen])} chars)")
+    return str(dst)
 
 
 def _get_yomitoku():
@@ -53,15 +101,42 @@ def _get_yomitoku():
     return _YOMITOKU
 
 
-def _get_paddle(lang: str = 'japan', use_angle_cls: bool = True):
-    """共通の PaddleOCR インスタンスをキャッシュ取得"""
+def _get_paddle(lang: str = 'japan', use_angle_cls: bool = False):
+    """共通の PaddleOCR インスタンスをキャッシュ取得（環境変数反映+辞書カスタム）"""
     global _PADDLE_OCR_CACHE
-    cache_key = (lang, use_angle_cls)
+    
+    # 環境変数からハイパーパラメータを読み取り
+    det_db_thresh      = float(os.environ.get("OCR_DET_DB_THRESH", "0.30"))
+    det_db_box_thresh  = float(os.environ.get("OCR_DET_DB_BOX_THRESH", "0.60"))
+    det_db_unclip      = float(os.environ.get("OCR_DET_DB_UNCLIP", "1.50"))
+    det_limit_side_len = int(os.environ.get("OCR_DET_LIMIT_SIDE_LEN", "960"))
+    rec_batch_num      = int(os.environ.get("OCR_REC_BATCH_NUM", "6"))
+    rec_char_dict_path = os.environ.get("OCR_REC_CHAR_DICT") or _ensure_custom_dict(lang)
+    
+    # キャッシュキーに主要パラメータを含めて取り違え防止
+    cache_key = (lang, use_angle_cls, det_limit_side_len, det_db_thresh, det_db_box_thresh, det_db_unclip, rec_char_dict_path)
+    
     if cache_key not in _PADDLE_OCR_CACHE:
         from paddleocr import PaddleOCR
+        
+        print(f"[INIT] PaddleOCR: lang={lang}, use_angle_cls={use_angle_cls}, "
+              f"det_db_thresh={det_db_thresh}, det_box_thresh={det_db_box_thresh}, "
+              f"unclip_ratio={det_db_unclip}, det_limit={det_limit_side_len}, "
+              f"rec_batch={rec_batch_num}, rec_dict={rec_char_dict_path}")
+        
         _PADDLE_OCR_CACHE[cache_key] = PaddleOCR(
             lang=lang,
-            use_textline_orientation=use_angle_cls
+            use_textline_orientation=use_angle_cls,
+            use_angle_cls=use_angle_cls,
+            show_log=False,
+            det_db_thresh=det_db_thresh,
+            det_db_box_thresh=det_db_box_thresh,
+            det_db_unclip_ratio=det_db_unclip,
+            det_limit_side_len=det_limit_side_len,
+            rec_batch_num=rec_batch_num,
+            rec_char_dict_path=rec_char_dict_path if rec_char_dict_path else None,
+            use_dilation=True,  # 低コントラスト対策
+            drop_score=0.5,
         )
     return _PADDLE_OCR_CACHE[cache_key]
 
@@ -165,10 +240,15 @@ def run_yomitoku(bgr_image, lang_hint: str) -> Optional[OcrResult]:
         return None
 
 
-def run_paddleocr(bgr_image, lang_hint: str) -> Optional[OcrResult]:
-    """PaddleOCR 実行 (ocr 優先、predict 補助) + デバッグ"""
-    paddle_lang = {"JP": "japan", "EN": "en", "MIX": "japan"}.get(lang_hint.upper(), "japan")
-    ocr = _get_paddle(paddle_lang)
+def run_paddleocr(bgr_image, lang_hint: str, tags: str = "") -> Optional[OcrResult]:
+    """PaddleOCR 実行 (mono-code時はlang='en'に強制)"""
+    # mono-code タグがあれば英語モデルに強制
+    if "mono-code" in tags.lower():
+        paddle_lang = "en"
+    else:
+        paddle_lang = {"JP": "japan", "EN": "en", "MIX": "japan"}.get(lang_hint.upper(), "japan")
+    
+    ocr = _get_paddle(paddle_lang, use_angle_cls=False)
     
     if ocr is None:
         return None
@@ -177,42 +257,35 @@ def run_paddleocr(bgr_image, lang_hint: str) -> Optional[OcrResult]:
     txt = ""
     conf = 0.0
     
-    # 1) ocr() メソッド（安定版）
+    # ocr() メソッドのみ使用（predict() は削除）
     try:
-        res = ocr.ocr(bgr_image)
+        res = ocr.ocr(bgr_image, cls=False)
         
-        if res and isinstance(res, list) and len(res) > 0 and isinstance(res[0], list):
-            texts, scores = [], []
-            for item in res[0]:
-                if len(item) > 1 and item[1]:
-                    t = item[1][0]
-                    s = float(item[1][1]) if len(item[1]) > 1 else 0.8
-                    texts.append(t)
-                    scores.append(s)
-            
-            if texts:
-                txt = "".join(texts)
-                conf = float(sum(scores) / len(scores)) if scores else 0.8
-                print(f"[DEBUG] PaddleOCR ocr(): extracted {len(texts)} text blocks")
+        if res and isinstance(res, list) and len(res) > 0:
+            # res[0] が None または空リストの場合を考慮
+            if res[0] and isinstance(res[0], list):
+                texts, scores = [], []
+                for item in res[0]:
+                    if len(item) > 1 and item[1]:
+                        t = item[1][0]
+                        s = float(item[1][1]) if len(item[1]) > 1 else 0.8
+                        texts.append(t)
+                        scores.append(s)
+                
+                if texts:
+                    txt = "".join(texts)
+                    conf = float(sum(scores) / len(scores)) if scores else 0.8
+                    print(f"[DEBUG] PaddleOCR lang={paddle_lang}: extracted {len(texts)} text blocks")
+                else:
+                    print(f"[WARN] PaddleOCR lang={paddle_lang}: no text blocks found in result")
+            else:
+                print(f"[WARN] PaddleOCR lang={paddle_lang}: res[0] is None or not a list")
     
     except Exception as e:
         print(f"[WARN] PaddleOCR ocr() failed: {e}")
-    
-    # 2) predict() メソッド（フォールバック）
-    if not txt:
-        try:
-            pred = ocr.predict(bgr_image)
-            
-            if pred and isinstance(pred, list) and len(pred) > 0:
-                if isinstance(pred[0], dict):
-                    rec_texts = pred[0].get("rec_texts", [])
-                    if rec_texts:
-                        txt = "".join(rec_texts)
-                        conf = 0.8
-                        print(f"[DEBUG] PaddleOCR predict(): extracted {len(rec_texts)} texts")
-        
-        except Exception as e:
-            print(f"[WARN] PaddleOCR predict() failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
     
     end = time.perf_counter()
     
@@ -261,10 +334,13 @@ def preprocess_for_tags(bgr, tags: str):
 # ===========================
 _WS_RX = re.compile(r"\s+", re.MULTILINE)
 
-def normalize_text(s: str) -> str:
+def normalize_text(s: str, *, keep_spaces: bool = False) -> str:
+    """テキスト正規化（mono-codeでは空白保持）"""
     if not s:
         return ""
     s = unicodedata.normalize("NFKC", s)
+    if keep_spaces:
+        return s.strip()
     s = _WS_RX.sub(" ", s).strip()
     return s
 
@@ -309,7 +385,10 @@ def evaluate_dataset(
             continue
         
         expected_raw = txt_path.read_text(encoding="utf-8").strip()
-        expected_norm = normalize_text(expected_raw)
+        
+        # mono-code では空白保持
+        keep_spaces = "mono-code" in tags.lower()
+        expected_norm = normalize_text(expected_raw, keep_spaces=keep_spaces)
         
         # 画像読み込み
         img_path = root_dir / file_name
@@ -323,15 +402,15 @@ def evaluate_dataset(
         # ★パッチ3: タグ別前処理
         bgr_processed = preprocess_for_tags(bgr, tags)
         
-        # ★パッチ2: 両エンジン実行
+        # ★パッチ2: 両エンジン実行（tagsをrun_paddleocrに渡す）
         res_y = run_yomitoku(bgr_processed, lang)
-        res_p = run_paddleocr(bgr_processed, lang)
+        res_p = run_paddleocr(bgr_processed, lang, tags)
         
         # CER で比較して最良を選択
         candidates = []
         for r in [res_y, res_p]:
             if r and r.text:
-                hyp_norm = normalize_text(r.text)
+                hyp_norm = normalize_text(r.text, keep_spaces=keep_spaces)
                 cer = char_error_rate(expected_norm, hyp_norm)
                 candidates.append({
                     "engine": r.engine,

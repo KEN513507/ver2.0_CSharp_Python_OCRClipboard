@@ -69,7 +69,13 @@ public sealed class HeartbeatService : IAsyncDisposable
             if (pong?.Ok == true)
             {
                 _consecutiveFailures = 0;
-                UpdateStatus(WorkerStatus.Healthy, $"pid={pong.Pid} ver={pong.Version ?? "unknown"}");
+                var warmed = pong.WarmedLangs is { Length: > 0 }
+                    ? string.Join(",", pong.WarmedLangs)
+                    : "-";
+                UpdateStatus(
+                    WorkerStatus.Healthy,
+                    $"pid={pong.Pid} ver={pong.Version ?? "unknown"} warmed={warmed}"
+                );
             }
             else
             {
