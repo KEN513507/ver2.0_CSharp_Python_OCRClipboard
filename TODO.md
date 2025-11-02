@@ -1,5 +1,9 @@
 # OCR Quality Improvement Tasks
 
+## Recently Completed
+- [x] Automated test set creation with `tools/build_set1.ps1` (HTML → TXT/PNG/manifest)
+- [x] Simplified README / documentation entry points (`docs/DOCUMENTATION_NAV.md`, `docs/OCR_TEST_SET1_PLAN.md`)
+
 ## 1. Enhance OCR Accuracy (src/python/ocr_worker/handler.py)
 - [ ] Improve image preprocessing: add denoising, contrast enhancement, bilateral filtering
 - [ ] Switch from yomitoku to PaddleOCR for better accuracy (already imported in main.py)
@@ -24,11 +28,11 @@
 - [ ] Focus on primary display scales (100%, 125%, 150%)
 - [ ] Add real image testing alongside synthetic tests
 
-## 5. Update Documentation (README.md)
-- [ ] Clarify primary display only support
-- [ ] Add specification notes about current limitations
-- [ ] Document quality thresholds and expectations
-- [ ] Add troubleshooting section for OCR issues
+## 5. Update Documentation / Ops Notes
+- [x] Provide quick-start README + documentation map
+- [ ] Clarify primary display only support with diagrams / screenshots
+- [ ] Move quality thresholds・期待値 into a dedicated spec section
+- [ ] Add troubleshooting section for OCR issues（ログ参照の仕方など）
 
 ## Followup Steps
 - [ ] Run OCR accuracy tests after improvements
