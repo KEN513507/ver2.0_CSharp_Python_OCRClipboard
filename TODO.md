@@ -6,8 +6,9 @@
 
 ## 1. Enhance OCR Accuracy (src/python/ocr_worker/handler.py)
 - [ ] Improve image preprocessing: add denoising, contrast enhancement, bilateral filtering
-- [ ] Switch from yomitoku to PaddleOCR for better accuracy (already imported in main.py)
+- [x] Switch from yomitoku to PaddleOCR for better accuracy (already imported in main.py)
 - [ ] Add OCR parameter tuning (language detection, model selection)
+- [ ] Auto-switch mono-code samples to EN model and adjust normalization/box-drawing stripping
 - [ ] Implement fallback OCR engines if primary fails
 
 ## 2. Strengthen Quality Judgment Logic (src/python/ocr_worker/handler.py)
@@ -23,7 +24,7 @@
 - [ ] Add false negative detection and logging
 
 ## 4. Fix and Enhance Testing (tests/scripts/test_ocr_accuracy.py)
-- [ ] Fix OCR result extraction from yomitoku/PaddleOCR
+- [x] Fix OCR result extraction from yomitoku/PaddleOCR
 - [ ] Add comprehensive test patterns for different text types
 - [ ] Focus on primary display scales (100%, 125%, 150%)
 - [ ] Add real image testing alongside synthetic tests
