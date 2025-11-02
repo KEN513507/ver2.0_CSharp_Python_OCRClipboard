@@ -25,6 +25,8 @@ class OcrRequest:
     # "clipboard" or "imageBase64"
     source: str = "clipboard"
     imageBase64: str | None = None
+    tags: list[str] | None = None
+    meta: dict | None = None
 
 
 @dataclass
