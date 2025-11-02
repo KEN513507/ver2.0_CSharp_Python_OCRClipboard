@@ -36,7 +36,7 @@ from ocr_worker.handler import levenshtein_distance  # noqa: E402
 # グローバルキャッシュ
 # ===========================
 _YOMITOKU = None
-_PADDLE_CACHE: Dict[str, Any] = {}
+_PADDLE_OCR_CACHE: Dict[str, Any] = {}
 
 
 def _get_yomitoku():
