@@ -37,55 +37,6 @@ from ocr_worker.handler import levenshtein_distance  # noqa: E402
 # ===========================
 _YOMITOKU = None
 _PADDLE_OCR_CACHE: Dict[str, Any] = {}
-_CUSTOM_DICT_CACHE: Dict[str, str] = {}
-
-
-def _ensure_custom_dict(lang: str) -> Optional[str]:
-    """言語別ベース辞書をコピーして罫線追加"""
-    global _CUSTOM_DICT_CACHE
-    
-    if lang in _CUSTOM_DICT_CACHE:
-        return _CUSTOM_DICT_CACHE[lang]
-    
-    try:
-        import paddleocr
-        base = pathlib.Path(paddleocr.__file__).resolve().parent
-    except Exception:
-        _CUSTOM_DICT_CACHE[lang] = None
-        return None
-    
-    # 言語別ベース辞書パス（en は ppocr_keys_v1.txt を使用）
-    if lang.startswith("japan"):
-        src = base / "ppocr" / "utils" / "dict" / "japan_dict.txt"
-    else:
-        # 英語などは ppocr_keys_v1.txt（6623文字）を使用
-        src = base / "ppocr" / "utils" / "ppocr_keys_v1.txt"
-    
-    if not src.exists():
-        _CUSTOM_DICT_CACHE[lang] = None
-        return None
-    
-    dst_dir = ROOT / "tmp"
-    dst_dir.mkdir(parents=True, exist_ok=True)
-    dst = dst_dir / f"{lang}_dict_custom.txt"
-    
-    # 罫線文字（BOX-DRAWING主要文字）
-    boxdraw = "─│┌┐├┤┬┴└┘╭╮╰╯╔╗╚╝║═╠╣╦╩╬"
-    
-    seen = set()
-    with src.open("r", encoding="utf-8") as f, dst.open("w", encoding="utf-8") as g:
-        for line in f:
-            tok = line.rstrip("\n")
-            if tok:
-                seen.add(tok)
-            g.write(line)
-        for ch in boxdraw:
-            if ch not in seen:
-                g.write(ch + "\n")
-    
-    _CUSTOM_DICT_CACHE[lang] = str(dst)
-    print(f"[INIT] Custom dict: {dst} ({len(seen)+len([c for c in boxdraw if c not in seen])} chars)")
-    return str(dst)
 
 
 def _get_yomitoku():
@@ -103,7 +54,7 @@ def _get_yomitoku():
 
 
 def _get_paddle(lang: str = 'japan', use_angle_cls: bool = False):
-    """共通の PaddleOCR インスタンスをキャッシュ取得（環境変数反映+辞書カスタム）"""
+    """共通の PaddleOCR インスタンスをキャッシュ取得（環境変数反映、辞書はデフォルト）"""
     global _PADDLE_OCR_CACHE
     
     # 環境変数からハイパーパラメータを読み取り
@@ -112,10 +63,9 @@ def _get_paddle(lang: str = 'japan', use_angle_cls: bool = False):
     det_db_unclip      = float(os.environ.get("OCR_DET_DB_UNCLIP", "1.50"))
     det_limit_side_len = int(os.environ.get("OCR_DET_LIMIT_SIDE_LEN", "960"))
     rec_batch_num      = int(os.environ.get("OCR_REC_BATCH_NUM", "6"))
-    rec_char_dict_path = os.environ.get("OCR_REC_CHAR_DICT") or _ensure_custom_dict(lang)
     
     # キャッシュキーに主要パラメータを含めて取り違え防止
-    cache_key = (lang, use_angle_cls, det_limit_side_len, det_db_thresh, det_db_box_thresh, det_db_unclip, rec_char_dict_path)
+    cache_key = (lang, use_angle_cls, det_limit_side_len, det_db_thresh, det_db_box_thresh, det_db_unclip)
     
     if cache_key not in _PADDLE_OCR_CACHE:
         from paddleocr import PaddleOCR
@@ -123,7 +73,7 @@ def _get_paddle(lang: str = 'japan', use_angle_cls: bool = False):
         print(f"[INIT] PaddleOCR: lang={lang}, use_angle_cls={use_angle_cls}, "
               f"det_db_thresh={det_db_thresh}, det_box_thresh={det_db_box_thresh}, "
               f"unclip_ratio={det_db_unclip}, det_limit={det_limit_side_len}, "
-              f"rec_batch={rec_batch_num}, rec_dict={rec_char_dict_path}")
+              f"rec_batch={rec_batch_num}")
         
         _PADDLE_OCR_CACHE[cache_key] = PaddleOCR(
             lang=lang,
@@ -135,7 +85,6 @@ def _get_paddle(lang: str = 'japan', use_angle_cls: bool = False):
             det_db_unclip_ratio=det_db_unclip,
             det_limit_side_len=det_limit_side_len,
             rec_batch_num=rec_batch_num,
-            rec_char_dict_path=rec_char_dict_path if rec_char_dict_path else None,
             use_dilation=True,  # 低コントラスト対策
             drop_score=0.5,
         )
@@ -242,12 +191,13 @@ def run_yomitoku(bgr_image, lang_hint: str) -> Optional[OcrResult]:
 
 
 def run_paddleocr(bgr_image, lang_hint: str, tags: str = "") -> Optional[OcrResult]:
-    """PaddleOCR 実行 (mono-code時はlang='en'に強制)"""
-    # mono-code タグがあれば英語モデルに強制
-    if "mono-code" in tags.lower():
+    """PaddleOCR 実行（言語はlang_hintを優先、mono-codeでも日本語ならjapan）"""
+    # lang_hintを優先（JP/EN/MIX）
+    if lang_hint.upper() == "EN":
         paddle_lang = "en"
     else:
-        paddle_lang = {"JP": "japan", "EN": "en", "MIX": "japan"}.get(lang_hint.upper(), "japan")
+        # JP/MIX は japan モデル（mono-code でも日本語+罫線対応）
+        paddle_lang = "japan"
     
     ocr = _get_paddle(paddle_lang, use_angle_cls=False)
     
@@ -334,15 +284,29 @@ def preprocess_for_tags(bgr, tags: str):
 # テキスト正規化 & CER
 # ===========================
 _WS_RX = re.compile(r"\s+", re.MULTILINE)
+# BOX-DRAWING文字（U+2500-U+257F）を完全除去
+BOX_DRAW_RE = re.compile(r'[\u2500-\u257F]+')
 
-def normalize_text(s: str, *, keep_spaces: bool = False) -> str:
-    """テキスト正規化（mono-codeでは空白保持）"""
+def normalize_text(s: str, *, keep_spaces: bool = False, ignore_boxdrawing: bool = True) -> str:
+    """テキスト正規化（罫線除去、mono-codeでは空白保持）"""
     if not s:
         return ""
+    
+    # BOX-DRAWING文字を完全除去
+    if ignore_boxdrawing:
+        s = BOX_DRAW_RE.sub("", s)
+    
+    # 全角空白を半角へ（行頭インデント対策）
+    s = s.replace("\u3000", " ")
+    
     s = unicodedata.normalize("NFKC", s)
+    
     if keep_spaces:
-        return s.strip()
-    s = _WS_RX.sub(" ", s).strip()
+        # 連続空白は畳まず、改行→空白置換のみ
+        s = s.replace("\r\n", " ").replace("\n", " ").strip()
+    else:
+        s = _WS_RX.sub(" ", s).strip()
+    
     return s
 
 
@@ -387,9 +351,9 @@ def evaluate_dataset(
         
         expected_raw = txt_path.read_text(encoding="utf-8").strip()
         
-        # mono-code では空白保持
+        # mono-code では空白保持、罫線は常に無視
         keep_spaces = "mono-code" in tags.lower()
-        expected_norm = normalize_text(expected_raw, keep_spaces=keep_spaces)
+        expected_norm = normalize_text(expected_raw, keep_spaces=keep_spaces, ignore_boxdrawing=True)
         
         # 画像読み込み
         img_path = root_dir / file_name
@@ -411,7 +375,7 @@ def evaluate_dataset(
         candidates = []
         for r in [res_y, res_p]:
             if r and r.text:
-                hyp_norm = normalize_text(r.text, keep_spaces=keep_spaces)
+                hyp_norm = normalize_text(r.text, keep_spaces=keep_spaces, ignore_boxdrawing=True)
                 cer = char_error_rate(expected_norm, hyp_norm)
                 candidates.append({
                     "engine": r.engine,
