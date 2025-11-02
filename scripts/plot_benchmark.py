@@ -133,7 +133,7 @@ def plot_benchmark(output_path='outputs/ocr_benchmark.png', show_linear=False, i
     ax.axvspan(500, 800, alpha=0.1, color='yellow', 
                label='O(n)→O(n²) 遷移領域')
     ax.axvspan(800, 1100, alpha=0.1, color='red',
-               label='非線形支配領域 (自動分割必須 🔪)')
+               label='非線形支配領域 (自動分割必須)')
     
     # 自動分割戦略アイコン（対策の視覚化）
     ax.annotate('自動分割\n戦略', xy=(900, 700), xytext=(950, 780),
