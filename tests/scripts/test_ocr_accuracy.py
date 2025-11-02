@@ -54,11 +54,12 @@ def _ensure_custom_dict(lang: str) -> Optional[str]:
         _CUSTOM_DICT_CACHE[lang] = None
         return None
     
-    # 言語別ベース辞書パス
+    # 言語別ベース辞書パス（en は ppocr_keys_v1.txt を使用）
     if lang.startswith("japan"):
         src = base / "ppocr" / "utils" / "dict" / "japan_dict.txt"
     else:
-        src = base / "ppocr" / "utils" / "dict" / "en_dict.txt"
+        # 英語などは ppocr_keys_v1.txt（6623文字）を使用
+        src = base / "ppocr" / "utils" / "ppocr_keys_v1.txt"
     
     if not src.exists():
         _CUSTOM_DICT_CACHE[lang] = None
