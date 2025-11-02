@@ -156,19 +156,19 @@ def plot_benchmark(output_path='outputs/ocr_benchmark.png', show_linear=False, i
     
     # 統計情報のテキストボックス（設計指針 + 運用指針）
     stats_text = (
-        f'🔬 統計的根拠:\n'
+        f'■ 統計的根拠:\n'
         f'  • 二次モデル: R²={stats["r2_quad"]:.4f}, σ={stats["residual_std_quad"]:.1f}ms\n'
         f'  • 線形モデル: R²={stats["r2_lin"]:.4f}, σ={stats["residual_std_lin"]:.1f}ms\n'
         f'  • ΔAIC = {abs(stats["delta_aic"]):.2f} (>10 → 圧倒的優位)\n'
         f'  • 複雑性: O(n²) - フラグメント間干渉コスト\n'
         f'\n'
-        f'🔒 設計指針:\n'
+        f'■ 設計指針:\n'
         f'  • 予測式: y = {A:.6f}x² + {B:.4f}x + {C:.2f}\n'
         f'  • 文字数計測 + {SLA_CHARS_LIMIT}字閾値で自動分割\n'
         f'  • KPI: P95 < {SLA_THRESHOLD_MS}ms / エラー率 <1%\n'
         f'\n'
-        f'📈 運用:\n'
-        f'  • 監視: 残差分布∥分散∥傾向変化\n'
+        f'■ 運用:\n'
+        f'  • 監視: 残差分布||分散||傾向変化\n'
         f'  • 精度低下時はA/B再学習\n'
         f'  • 外れ値: ±3σ超過でアラート'
     )
