@@ -128,6 +128,20 @@ try {
 
     Write-Host "Pushing to $Remote/$Branch..."
     git push $Remote $Branch
+
+    try {
+        $remoteUrl = git remote get-url $Remote
+        $browserUrl = $remoteUrl
+        if ($remoteUrl -match "^git@github.com:(.+)\.git$") {
+            $browserUrl = "https://github.com/$($Matches[1])/tree/$Branch"
+        } elseif ($remoteUrl -match "^https://github.com/(.+)\.git$") {
+            $browserUrl = "https://github.com/$($Matches[1])/tree/$Branch"
+        }
+        Write-Host "✅ Pushed successfully. View it here:"
+        Write-Host "   $browserUrl"
+    } catch {
+        Write-Warning "Push succeeded, but failed to determine remote URL."
+    }
 }
 catch {
     Write-Error $_.Exception.Message
