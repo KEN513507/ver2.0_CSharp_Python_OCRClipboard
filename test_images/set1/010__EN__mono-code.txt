@@ -1,0 +1,16 @@
+C#// C# Sample from documentation
+// URL: https://www.gutenberg.org/
+namespace CSharpApplication
+{
+    public static void CalculateSum()
+    {
+        int a = 42;
+        int b = 119;
+        int c = a + b;
+        Console.WriteLine("The sum is: " + c);
+    }
+}
+
+
+
+K. サンプル011：日本語・英語混合テキスト

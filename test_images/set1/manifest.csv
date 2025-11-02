@@ -1,0 +1,13 @@
+id,file,lang,tags,chars_expected,notes
+001,001__JP__clean.png,JP,clean,257,
+002,002__JP__clean-dense.png,JP,clean-dense,355,
+003,003__JP__small.png,JP,small,173,
+004,004__JP__large.png,JP,large,196,
+005,005__JP__lowcontrast.png,JP,lowcontrast,247,
+006,006__JP__invert-small.png,JP,invert-small,169,
+007,007__JP__tilt2.png,JP,tilt2,198,
+008,008__JP__mono-code.png,JP,mono-code,213,
+009,009__EN__clean.png,EN,clean,337,
+010,010__EN__mono-code.png,EN,mono-code,288,
+011,011__MIX__clean.png,MIX,clean,228,
+012,012__MIX__lowcontrast-dense.png,MIX,lowcontrast-dense,3716,

@@ -68,12 +68,30 @@ def pick_font(families, size: int, fallback_files) -> ImageFont.ImageFont:
     return DEFAULT_FONT
 
 
-def resolve_font(lang: str, tags: str, size: int) -> ImageFont.ImageFont:
+def resolve_font(lang: str, tags: str, size: int, sample_text: str | None = None) -> ImageFont.ImageFont:
+    """
+    Pick a font that can render the given content.
+    - If text contains non-ASCII, prefer Japanese-capable fonts even when lang is EN.
+    - For mono-code, pick a mono font; choose JP mono when text is mixed.
+    """
     tag_list = tags.split("-")
+    has_non_ascii = False
+    if sample_text:
+        has_non_ascii = any(ord(ch) > 127 for ch in sample_text)
+
     if "mono" in tag_list and "code" in tag_list:
+        # Prefer JP mono when mixed content exists
+        if has_non_ascii:
+            return pick_font(JP_MONO_FAMILIES, size, JP_MONO_FILES)
+        # Pure ASCII
         if lang == "EN":
             return pick_font(EN_MONO_FAMILIES, size, EN_MONO_FILES)
         return pick_font(JP_MONO_FAMILIES, size, JP_MONO_FILES)
+
+    # Non-mono cases: if text is mixed, use JP fonts that include Latin as well
+    if has_non_ascii or lang != "EN":
+        return pick_font(JP_FONT_FAMILIES, size, JP_FONT_FILES)
+    # Pure ASCII English
     return pick_font(JP_FONT_FAMILIES, size, JP_FONT_FILES)
 
 
@@ -128,7 +146,8 @@ def render_text(text: str, font: ImageFont.ImageFont, max_width: int, line_spaci
 
 def draw_image(text: str, lang: str, tags: str, out_path: pathlib.Path) -> None:
     bg, fg, font_size, line_spacing, invert, tilt_angle = calc_style(lang, tags)
-    font = resolve_font(lang, tags, font_size)
+    # Pass text sample to resolve_font so mixed EN/JP in EN-mono is handled
+    font = resolve_font(lang, tags, font_size, sample_text=text)
     
     # Warn if using default font (potential garbled text)
     if font == DEFAULT_FONT:
