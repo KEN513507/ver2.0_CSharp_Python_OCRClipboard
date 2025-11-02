@@ -1,5 +1,5 @@
 # OCR Quality Improvement Tasks
-
+#　TODOタスク
 ## Recently Completed
 - [x] Automated test set creation with `tools/build_set1.ps1` (HTML → TXT/PNG/manifest)
 - [x] Simplified README / documentation entry points (`docs/DOCUMENTATION_NAV.md`, `docs/OCR_TEST_SET1_PLAN.md`)
