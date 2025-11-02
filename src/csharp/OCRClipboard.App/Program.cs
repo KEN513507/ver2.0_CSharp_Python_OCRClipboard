@@ -123,5 +123,4 @@ public partial class Program
             Console.Error.WriteLine($"[C#] Failed to save debug capture: {ex.Message}");
         }
     }
-    
 }

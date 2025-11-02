@@ -152,15 +152,16 @@ public class OcrPerformanceMonitorTests
     [Fact]
     public void SLA_Threshold_Is_400ms()
     {
-        // 560文字でSLA閾値付近
-        var chars560 = _monitor.PredictProcessingTime(560);
-        Assert.InRange(chars560, 380, 420); // 400ms ± 20ms
+        // 712文字でSLA閾値（約400ms）
+        var chars712 = _monitor.PredictProcessingTime(712);
+        Assert.InRange(chars712, 395, 405); // 400ms ± 5ms
 
-        // 561文字で超過開始
-        var exceeds560 = _monitor.ExceedsSla(560);
-        var exceeds561 = _monitor.ExceedsSla(561);
+        // 境界付近の挙動
+        var exceeds700 = _monitor.ExceedsSla(700);
+        var exceeds750 = _monitor.ExceedsSla(750);
         
-        // 境界付近の挙動（560は閾値内、561以上で超過可能性）
-        Assert.False(exceeds560);
+        // 700は閾値内（385ms）、750で超過（443ms）
+        Assert.False(exceeds700);
+        Assert.True(exceeds750);
     }
 }
