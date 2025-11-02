@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Project = (Join-Path $PSScriptRoot '..\..\src\csharp\OCRClipboard.App\OCRClipboard.App.csproj'),
     [string]$TestPattern = (Join-Path $PSScriptRoot '..\assets\coordinate_test_pattern.html'),
     [string]$LogsDir = (Join-Path $PSScriptRoot '..\logs'),
