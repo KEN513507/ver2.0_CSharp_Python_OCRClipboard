@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+# guard against accidental legacy worker resurrection
+"${repo_root}/tools/precheck_no_main_py.sh"

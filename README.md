@@ -31,6 +31,8 @@ dotnet run --project src/csharp/OCRClipboard.App
 - Display 1 / DPI 100% 前提
 - `PYTHONPATH=src/python` を設定して Python を起動
 - 高速化（GPU / NamedPipe 等）は検証段階
+- 旧ワーカー `src/python/ocr_worker/main.py` は使用禁止。CI の `precheck_no_main_py` と pre-commit 用フックで検出されます。
+  - ローカルでもチェックしたい場合は `git config core.hooksPath githooks` を一度実行してください。
 
 ---  
 詳細を読みたくなったら `docs/DOCUMENTATION_NAV.md` を開いてください。***

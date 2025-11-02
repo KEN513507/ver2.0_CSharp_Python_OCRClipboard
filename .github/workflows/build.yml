@@ -14,4 +14,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Ensure legacy worker is absent
+        shell: pwsh
+        run: ./tools/precheck_no_main_py.ps1
       - run: dotnet format --verify-no-changes

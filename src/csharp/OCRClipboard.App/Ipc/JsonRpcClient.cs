@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using OCRClipboard.App.Dto;
 
 namespace OCRClipboard.App.Ipc;
@@ -49,7 +48,13 @@ public sealed class JsonRpcClient
             Console.Error.WriteLine($"[py-json] {(line.Length > 200 ? line[..200] + "…" : line)}");
 #endif
             var env = JsonSerializer.Deserialize<Envelope>(line, _jsonOpts);
-            if (env == null || string.IsNullOrWhiteSpace(env.Id)) return;
+            if (env == null || string.IsNullOrWhiteSpace(env.Id))
+            {
+#if DEBUG
+                Console.Error.WriteLine($"[py-json drop] Missing 'id' field");
+#endif
+                return;
+            }
 
             if (_pending.TryRemove(env.Id, out var tcs))
             {
@@ -77,7 +82,7 @@ public sealed class JsonRpcClient
         };
 
         var line = JsonSerializer.Serialize(env, _jsonOpts);
-        await _host.WriteLineAsync(line);
+        await _host.WriteLineAsync(line).ConfigureAwait(false);
 
         using var reg = ct.Register(() =>
         {

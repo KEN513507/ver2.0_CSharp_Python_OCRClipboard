@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OCRClipboard.App.Ipc;
 
@@ -10,6 +12,7 @@ public sealed class PythonProcessHost : IDisposable
     private readonly string _workingDirectory;
     private Process? _proc;
     private CancellationTokenSource? _readCts;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public event Action<string>? OnLineReceived;
 
@@ -24,18 +27,25 @@ public sealed class PythonProcessHost : IDisposable
     {
         if (_proc != null) return;
 
+        var repoRoot = _workingDirectory;
+        var pythonSrcDir = Path.Combine(repoRoot, "src", "python");
+        if (!Directory.Exists(pythonSrcDir))
+        {
+            pythonSrcDir = repoRoot;
+        }
+
         var start = new ProcessStartInfo
         {
             FileName = _pythonExe,
-            Arguments = $"-u -X utf8 -m {_module}",
+            Arguments = $"-u -X utf8 -m {_module} --stdio",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
-            WorkingDirectory = _workingDirectory,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = pythonSrcDir,
+            StandardOutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            StandardErrorEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
         };
 
         // Python UTF-8 enforcement
@@ -44,13 +54,14 @@ public sealed class PythonProcessHost : IDisposable
         start.Environment["PYTHONLEGACYWINDOWSSTDIO"] = "0";
 
         // Ensure Python can find src/python
-        var pythonPath = Path.Combine(_workingDirectory, "src", "python");
-        if (Directory.Exists(pythonPath))
+        if (Directory.Exists(pythonSrcDir))
         {
-            if (start.Environment.ContainsKey("PYTHONPATH"))
-                start.Environment["PYTHONPATH"] = start.Environment["PYTHONPATH"] + Path.PathSeparator + pythonPath;
-            else
-                start.Environment["PYTHONPATH"] = pythonPath;
+            var existingPyPath = start.Environment.ContainsKey("PYTHONPATH")
+                ? start.Environment["PYTHONPATH"]
+                : string.Empty;
+            start.Environment["PYTHONPATH"] = string.IsNullOrWhiteSpace(existingPyPath)
+                ? pythonSrcDir
+                : pythonSrcDir + Path.PathSeparator + existingPyPath;
         }
 
         // Silence Python logging noise
@@ -111,16 +122,24 @@ public sealed class PythonProcessHost : IDisposable
         }
     }
 
-    public Task WriteLineAsync(string line)
+    public async Task WriteLineAsync(string line)
     {
         if (_proc?.StandardInput == null) throw new InvalidOperationException("Python not started");
-        _proc.StandardInput.WriteLine(line);
-        _proc.StandardInput.Flush();
-        return Task.CompletedTask;
+        await _writeLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await _proc.StandardInput.WriteLineAsync(line).ConfigureAwait(false);
+            await _proc.StandardInput.FlushAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     public void Dispose()
     {
         _ = StopAsync();
+        _writeLock.Dispose();
     }
 }

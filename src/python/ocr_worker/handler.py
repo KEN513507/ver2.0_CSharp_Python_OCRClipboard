@@ -4,7 +4,7 @@ import base64
 import io
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import cv2
 from PIL import Image
@@ -13,6 +13,21 @@ import numpy as np
 from .dto import HealthCheck, HealthOk, OcrRequest, OcrResponse
 
 logger = logging.getLogger(__name__)
+_PADDLE_VERSION_CACHE: Optional[str] = None
+
+
+def _get_paddle_version() -> str:
+    global _PADDLE_VERSION_CACHE
+    if _PADDLE_VERSION_CACHE is not None:
+        return _PADDLE_VERSION_CACHE
+    try:
+        import paddleocr  # noqa: F401
+
+        version = getattr(paddleocr, "__version__", "")
+        _PADDLE_VERSION_CACHE = f"paddleocr-{version}" if version else "paddleocr"
+    except Exception:
+        _PADDLE_VERSION_CACHE = "paddleocr-unavailable"
+    return _PADDLE_VERSION_CACHE
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -110,6 +125,28 @@ def judge_quality(expected_text: str, actual_text: str, confidence: float = 0.0)
 def handle_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
     _ = HealthCheck(**payload) if isinstance(payload, dict) else HealthCheck()
     return HealthOk(message="ok").__dict__
+
+
+def handle_ping(payload: Dict[str, Any]) -> Dict[str, Any]:
+    ts = None
+    if isinstance(payload, dict):
+        ts = payload.get("ts")
+    try:
+        return {
+            "ok": True,
+            "ts": ts,
+            "pid": os.getpid(),
+            "ver": _get_paddle_version()
+        }
+    except Exception as exc:  # Fallback just in case
+        logger.debug("Ping handler fell back: %s", exc, exc_info=True)
+        return {
+            "ok": False,
+            "ts": ts,
+            "pid": os.getpid(),
+            "ver": "unknown",
+            "error": str(exc)
+        }
 
 
 def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using OCRClipboard.App.Ipc;
 using OCRClipboard.App.Dto;
 
@@ -13,62 +11,83 @@ public partial class Program
     {
         Console.WriteLine("[C#] Starting Python worker and launching overlay...");
 
+        var repoRoot = Directory.GetCurrentDirectory();
+        var pythonExe = Environment.GetEnvironmentVariable("OCR_PYTHON_EXE");
+        if (string.IsNullOrWhiteSpace(pythonExe))
+        {
+            var venvCandidate = Path.Combine(repoRoot, ".venv-ocr27", "Scripts", "python.exe");
+            pythonExe = File.Exists(venvCandidate) ? venvCandidate : "python.exe";
+        }
+
         using var host = new PythonProcessHost(
-            pythonExe: "python",
-            module: "ocr_worker.main",
-            workingDirectory: Directory.GetCurrentDirectory());
+            pythonExe: pythonExe,
+            module: "ocr_worker",
+            workingDirectory: repoRoot);
 
         await host.StartAsync();
 
         var client = new JsonRpcClient(host);
-
-        // Health check
-        var health = await client.CallAsync<HealthOk>(
-            type: "health.check",
-            payload: new HealthCheck { Reason = "startup" },
-            CancellationToken.None);
-        Console.WriteLine($"[C#] Health OK: {health?.Message}");
-
-        // Launch overlay selection window (single monitor, monitor-local physical coords)
-        var selection = await OCRClipboard.Overlay.OverlayRunner.RunSelectionCaptureAsync();
-        if (selection != null)
+        var heartbeat = new HeartbeatService(client);
+        heartbeat.OnStatusChanged += (status, message) =>
         {
-            SaveDebugCapture(selection.Value.imageBase64);
+            Console.WriteLine($"[C#] Worker status: {status} ({message})");
+        };
+        heartbeat.Start();
 
-            // SLA guard: テキスト長を予測して自動分割判定
-            // TODO: 実際の画像解析でテキスト長を推定する必要あり
-            // ここではダミーで500文字と仮定（実装時は画像から推定）
-            int estimatedChars = 500; // 画像解析から推定値を取得
+        try
+        {
+            // Health check
+            var health = await client.CallAsync<HealthOk>(
+                type: "health.check",
+                payload: new HealthCheck { Reason = "startup" },
+                CancellationToken.None);
+            Console.WriteLine($"[C#] Health OK: {health?.Message}");
 
-            if (_monitor.ExceedsSla(estimatedChars))
+            // Launch overlay selection window (single monitor, monitor-local physical coords)
+            var selection = await OCRClipboard.Overlay.OverlayRunner.RunSelectionCaptureAsync();
+            if (selection != null)
             {
-                Console.WriteLine($"[C#] ⚠️ SLA exceeded prediction: {estimatedChars} chars → {_monitor.PredictProcessingTime(estimatedChars):F1}ms > 400ms");
-                Console.WriteLine("[C#] Auto-splitting recommended. Proceeding with single request for now.");
+                SaveDebugCapture(selection.Value.imageBase64);
+
+                // SLA guard: テキスト長を予測して自動分割判定
+                // TODO: 実際の画像解析でテキスト長を推定する必要あり
+                // ここではダミーで500文字と仮定（実装時は画像から推定）
+                int estimatedChars = 500; // 画像解析から推定値を取得
+
+                if (_monitor.ExceedsSla(estimatedChars))
+                {
+                    Console.WriteLine($"[C#] ⚠️ SLA exceeded prediction: {estimatedChars} chars → {_monitor.PredictProcessingTime(estimatedChars):F1}ms > 400ms");
+                    Console.WriteLine("[C#] Auto-splitting recommended. Proceeding with single request for now.");
+                }
+
+                var req = new OcrRequest
+                {
+                    Language = "eng",
+                    Source = "imageBase64",
+                    ImageBase64 = selection.Value.imageBase64
+                };
+
+                // OCR実行 + モニタリング
+                var ocr = await _monitor.MeasureAsync(
+                    estimatedChars,
+                    async () => await client.CallAsync<OcrResponse>(
+                        type: "ocr.perform",
+                        payload: req,
+                        CancellationToken.None));
+
+                Console.WriteLine($"[C#] OCR Text: '{ocr?.Text}' (conf={ocr?.Confidence})");
+                if (!string.IsNullOrEmpty(ocr?.Text))
+                {
+                    TrySetClipboardText(ocr!.Text);
+                }
+
+                // モニタリングレポート出力
+                Console.WriteLine(_monitor.GenerateReport());
             }
-
-            var req = new OcrRequest
-            {
-                Language = "eng",
-                Source = "imageBase64",
-                ImageBase64 = selection.Value.imageBase64
-            };
-
-            // OCR実行 + モニタリング
-            var ocr = await _monitor.MeasureAsync(
-                estimatedChars,
-                async () => await client.CallAsync<OcrResponse>(
-                    type: "ocr.perform",
-                    payload: req,
-                    CancellationToken.None));
-
-            Console.WriteLine($"[C#] OCR Text: '{ocr?.Text}' (conf={ocr?.Confidence})");
-            if (!string.IsNullOrEmpty(ocr?.Text))
-            {
-                TrySetClipboardText(ocr!.Text);
-            }
-
-            // モニタリングレポート出力
-            Console.WriteLine(_monitor.GenerateReport());
+        }
+        finally
+        {
+            await heartbeat.DisposeAsync();
         }
 
         await host.StopAsync();

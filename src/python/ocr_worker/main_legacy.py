@@ -79,6 +79,8 @@ def run_ocr():
 
 # 標準入力ループ処理
 def process_requests():
+    # 起動識別子（古い main.py が実行されたことが分かる）
+    print(json.dumps({"_boot": "ocr_worker.main (LEGACY)", "version": "1.0"}), flush=True)
     ocr = PaddleOCR(lang='japan')
     for line in sys.stdin:
         line = line.strip()
