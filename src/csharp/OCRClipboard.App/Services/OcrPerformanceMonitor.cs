@@ -156,7 +156,7 @@ public sealed class OcrPerformanceMonitor
             sb.AppendLine("═══════════════════════════════════════════════════════════════");
             sb.AppendLine("📐 Model Evaluation Report");
             sb.AppendLine("═══════════════════════════════════════════════════════════════");
-            
+
             // モデル情報
             sb.AppendLine("🔬 Quadratic Model (Selected):");
             sb.AppendLine($"  Equation: y = {A}x² + {B}x + {C:F2}");
@@ -196,7 +196,7 @@ public sealed class OcrPerformanceMonitor
             sb.AppendLine("  ΔAIC (10.22) used for model selection, NOT R² alone.");
             sb.AppendLine("  R² without AIC/BIC risks overfitting.");
             sb.AppendLine("═══════════════════════════════════════════════════════════════");
-            
+
             return sb.ToString();
         }
     }

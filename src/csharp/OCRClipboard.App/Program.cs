@@ -52,7 +52,7 @@ public partial class Program
                 Source = "imageBase64",
                 ImageBase64 = selection.Value.imageBase64
             };
-            
+
             // OCR実行 + モニタリング
             var ocr = await _monitor.MeasureAsync(
                 estimatedChars,
