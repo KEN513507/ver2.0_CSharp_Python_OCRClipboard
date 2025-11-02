@@ -32,9 +32,9 @@ public sealed class JsonRpcClient
         line = line.Trim().TrimStart(StripLeading);
         if (line.Length == 0) return;
 
-        // JSON must start with { or [
+        // JSON must start with {
         char c0 = line[0];
-        if (c0 != '{' && c0 != '[')
+        if (c0 != '{')
         {
 #if DEBUG
             var preview = line.Length > 120 ? line[..120] + "…" : line;
@@ -45,6 +45,9 @@ public sealed class JsonRpcClient
 
         try
         {
+#if DEBUG
+            Console.Error.WriteLine($"[py-json] {(line.Length > 200 ? line[..200] + "…" : line)}");
+#endif
             var env = JsonSerializer.Deserialize<Envelope>(line, _jsonOpts);
             if (env == null || string.IsNullOrWhiteSpace(env.Id)) return;
 
@@ -55,7 +58,8 @@ public sealed class JsonRpcClient
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[C#] Failed to handle line: {ex.Message}");
+            var preview = line.Length > 200 ? line[..200] + "…" : line;
+            Console.Error.WriteLine($"[C#] Failed to handle line: {ex.Message} | raw={preview}");
         }
     }
 
