@@ -27,14 +27,21 @@ public sealed class PythonProcessHost : IDisposable
         var start = new ProcessStartInfo
         {
             FileName = _pythonExe,
-            Arguments = $"-u -m {_module}",
+            Arguments = $"-u -X utf8 -m {_module}",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
             WorkingDirectory = _workingDirectory,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
+
+        // Python UTF-8 enforcement
+        start.Environment["PYTHONIOENCODING"] = "utf-8";
+        start.Environment["PYTHONUTF8"] = "1";
+        start.Environment["PYTHONLEGACYWINDOWSSTDIO"] = "0";
 
         // Ensure Python can find src/python
         var pythonPath = Path.Combine(_workingDirectory, "src", "python");
@@ -45,6 +52,20 @@ public sealed class PythonProcessHost : IDisposable
             else
                 start.Environment["PYTHONPATH"] = pythonPath;
         }
+
+        // Silence Python logging noise
+        start.Environment["PADDLEOCR_SHOW_LOG"] = "False";
+        start.Environment["FLAGS_minloglevel"] = "3";
+        start.Environment["GLOG_minloglevel"] = "3";
+        start.Environment["TQDM_DISABLE"] = "1";
+        start.Environment["PDX_NO_TQDM"] = "1";
+        start.Environment["PDX_OFFLINE"] = "1";
+
+        // OCR performance optimization: force mobile models
+        start.Environment["OCR_DOC_PIPELINE"] = Environment.GetEnvironmentVariable("OCR_DOC_PIPELINE") ?? "off";
+        start.Environment["OCR_PADDLE_VARIANT"] = Environment.GetEnvironmentVariable("OCR_PADDLE_VARIANT") ?? "mobile";
+        start.Environment["OCR_PADDLE_USE_CLS"] = Environment.GetEnvironmentVariable("OCR_PADDLE_USE_CLS") ?? "0";
+        start.Environment["OCR_PADDLE_LANG"] = Environment.GetEnvironmentVariable("OCR_PADDLE_LANG") ?? "japan";
 
         _proc = new Process { StartInfo = start, EnableRaisingEvents = true };
         _proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Console.Error.WriteLine($"[pyerr] {e.Data}"); };
@@ -103,4 +124,3 @@ public sealed class PythonProcessHost : IDisposable
         _ = StopAsync();
     }
 }
-

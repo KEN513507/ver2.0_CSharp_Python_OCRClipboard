@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using OCRClipboard.App.Dto;
 
 namespace OCRClipboard.App.Ipc;
@@ -15,6 +16,7 @@ public sealed class JsonRpcClient
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false
     };
+    private static readonly char[] StripLeading = new[] { '\uFEFF', '\u200B', '\u2060' };
 
     public JsonRpcClient(PythonProcessHost host)
     {
@@ -24,6 +26,23 @@ public sealed class JsonRpcClient
 
     private void HandleLine(string line)
     {
+        if (string.IsNullOrWhiteSpace(line)) return;
+
+        // Strip BOM and zero-width characters
+        line = line.Trim().TrimStart(StripLeading);
+        if (line.Length == 0) return;
+
+        // JSON must start with { or [
+        char c0 = line[0];
+        if (c0 != '{' && c0 != '[')
+        {
+#if DEBUG
+            var preview = line.Length > 120 ? line[..120] + "…" : line;
+            Console.Error.WriteLine($"[py-raw drop] {preview}");
+#endif
+            return;
+        }
+
         try
         {
             var env = JsonSerializer.Deserialize<Envelope>(line, _jsonOpts);
@@ -75,4 +94,3 @@ public sealed class JsonRpcClient
         }
     }
 }
-

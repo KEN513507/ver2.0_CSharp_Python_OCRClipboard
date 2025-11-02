@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import os
 from typing import Any, Dict
 
 import cv2
 from PIL import Image
 import numpy as np
-import yomitoku
 
 from .dto import HealthCheck, HealthOk, OcrRequest, OcrResponse
+
+logger = logging.getLogger(__name__)
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -124,83 +126,47 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
         # Enhanced image preprocessing for better OCR accuracy
         opencv_image = preprocess_image_for_ocr(opencv_image)
 
-        # Perform OCR using yomitoku with timeout
-        import signal
-        from contextlib import contextmanager
-
-        @contextmanager
-        def timeout_context(seconds: float):
-            def timeout_handler(signum, frame):
-                raise TimeoutError(f"OCR operation timed out after {seconds} seconds")
-
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(int(seconds))
-            try:
-                yield
-            finally:
-                signal.alarm(0)
-
+        # Perform OCR using PaddleOCR with environment variable control
         try:
-            with timeout_context(10.0):  # 10 second timeout
-                ocr = yomitoku.OCR()
-                ocr_result = ocr(opencv_image)
-        except TimeoutError:
-            logger.warning("OCR operation timed out, falling back to PaddleOCR")
-            # Fallback to PaddleOCR
-            try:
-                from paddleocr import PaddleOCR
-                
-                # 環境変数で軽量化制御
-                doc_pipe = os.environ.get("OCR_DOC_PIPELINE", "on").lower()
-                variant  = os.environ.get("OCR_PADDLE_VARIANT", "server").lower()
-                lang_code = os.environ.get("OCR_PADDLE_LANG", "en")
-                use_cls  = os.environ.get("OCR_PADDLE_USE_CLS", "1") in ("1", "true", "yes")
-                
-                # ドキュメント系を切るなら強制で angle_cls を無効
-                if doc_pipe == "off":
-                    use_cls = False
-                # server以外（=mobile系）を選んだら angle_cls はオフ（軽量＆確実）
-                if variant != "server":
-                    use_cls = False
-                
-                paddle_ocr = PaddleOCR(use_textline_orientation=use_cls, lang=lang_code)
-                paddle_result = paddle_ocr.predict(opencv_image)  # ocr.ocr -> ocr.predict
+            from paddleocr import PaddleOCR
+            
+            # 環境変数で軽量化制御
+            doc_pipe = os.environ.get("OCR_DOC_PIPELINE", "off").lower()
+            variant  = os.environ.get("OCR_PADDLE_VARIANT", "mobile").lower()
+            lang_code = os.environ.get("OCR_PADDLE_LANG", "japan")
+            use_cls  = os.environ.get("OCR_PADDLE_USE_CLS", "0") in ("1", "true", "yes")
+            
+            # ドキュメント系を切るなら強制で angle_cls を無効
+            if doc_pipe == "off":
+                use_cls = False
+            # server以外（=mobile系）を選んだら angle_cls はオフ（軽量＆確実）
+            if variant != "server":
+                use_cls = False
+            
+            logger.info(f"PaddleOCR init: lang={lang_code}, use_textline_orientation={use_cls}, variant={variant}")
+            
+            paddle_ocr = PaddleOCR(use_textline_orientation=use_cls, lang=lang_code)
+            paddle_result = paddle_ocr.ocr(opencv_image)
 
-                if paddle_result and paddle_result[0]:  # paddle_result[0] を参照
-                    text_blocks = [word_info[1][0] for line in paddle_result[0] for word_info in line]  # paddle_result[0] をループ
-                    text = ''.join(text_blocks)
-                    confidence = 0.8  # Default confidence for PaddleOCR fallback
-                else:
-                    text = ''
-                    confidence = 0.0
-            except Exception as e2:
-                logger.error(f"PaddleOCR fallback also failed: {e2}")
+            if paddle_result and paddle_result[0]:
+                text_blocks = []
+                scores = []
+                for item in paddle_result[0]:
+                    if len(item) > 1 and item[1]:
+                        text_blocks.append(item[1][0])
+                        if len(item[1]) > 1:
+                            scores.append(float(item[1][1]))
+                
+                text = ''.join(text_blocks)
+                confidence = float(sum(scores) / len(scores)) if scores else 0.8
+            else:
                 text = ''
                 confidence = 0.0
-            ocr_result = None  # Skip further processing
-
-        # Extract text and confidence (yomitoku returns tuple: (OCRSchema, None))
-        if ocr_result is not None:
-            try:
-                # OCR result is a tuple where first element is OCRSchema
-                if isinstance(ocr_result, tuple) and len(ocr_result) >= 1:
-                    ocr_schema = ocr_result[0]
-                    if hasattr(ocr_schema, 'words') and ocr_schema.words:
-                        # Extract text by joining all word contents
-                        text = ''.join([word.content for word in ocr_schema.words])
-                        # Calculate average recognition confidence
-                        confidence = sum([word.rec_score for word in ocr_schema.words]) / len(ocr_schema.words)
-                    else:
-                        text = ''
-                        confidence = 0.0
-                else:
-                    text = ''
-                    confidence = 0.0
-            except Exception as e:
-                print(f"Error extracting OCR result: {e}")
-                text = ''
-                confidence = 0.0
-        # If ocr_result is None, text and confidence were already set in timeout fallback
+        
+        except Exception as e:
+            logger.error(f"PaddleOCR failed: {e}")
+            text = ''
+            confidence = 0.0
 
         # Quality judgment - in production, this would compare against known expected text
         # For now, we skip quality judgment for general OCR use
