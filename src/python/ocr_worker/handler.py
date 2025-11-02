@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 from typing import Any, Dict
 
 import cv2
@@ -148,7 +149,21 @@ def handle_ocr_perform(payload: Dict[str, Any]) -> Dict[str, Any]:
             # Fallback to PaddleOCR
             try:
                 from paddleocr import PaddleOCR
-                paddle_ocr = PaddleOCR(use_textline_orientation=True, lang='en')  # use_gpu=False 削除, use_angle_cls -> use_textline_orientation
+                
+                # 環境変数で軽量化制御
+                doc_pipe = os.environ.get("OCR_DOC_PIPELINE", "on").lower()
+                variant  = os.environ.get("OCR_PADDLE_VARIANT", "server").lower()
+                lang_code = os.environ.get("OCR_PADDLE_LANG", "en")
+                use_cls  = os.environ.get("OCR_PADDLE_USE_CLS", "1") in ("1", "true", "yes")
+                
+                # ドキュメント系を切るなら強制で angle_cls を無効
+                if doc_pipe == "off":
+                    use_cls = False
+                # server以外（=mobile系）を選んだら angle_cls はオフ（軽量＆確実）
+                if variant != "server":
+                    use_cls = False
+                
+                paddle_ocr = PaddleOCR(use_textline_orientation=use_cls, lang=lang_code)
                 paddle_result = paddle_ocr.predict(opencv_image)  # ocr.ocr -> ocr.predict
 
                 if paddle_result and paddle_result[0]:  # paddle_result[0] を参照

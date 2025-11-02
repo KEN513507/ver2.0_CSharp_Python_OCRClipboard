@@ -4,7 +4,14 @@ param(
     [string]$ExpectedRect = '100,50,400,80',
     [string]$Scenario = 'ad-hoc',
     [int]$Runs = 1,
-    [switch]$LaunchPattern
+    [switch]$LaunchPattern,
+    [int]$ToleranceX = 2,
+    [int]$ToleranceY = 2,
+    [int]$ToleranceW = 2,
+    [int]$ToleranceH = 2,
+    [int]$WaitTimeoutSec = 10,
+    [int]$PollIntervalMs = 200,
+    [string]$OutCsv = ""
 )
 
 Set-StrictMode -Version Latest
@@ -56,6 +63,25 @@ function Read-SelectionEntry {
     }
 
     $entries | Sort-Object { [DateTimeOffset]$_.timestamp } | Select-Object -Last 1
+}
+
+function Wait-SelectionEntry {
+    param(
+        [string]$LogPath,
+        [string]$ScenarioFilter,
+        [DateTimeOffset]$After,
+        [int]$TimeoutSec,
+        [int]$PollMs
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        $entry = Read-SelectionEntry -LogPath $LogPath -ScenarioFilter $ScenarioFilter -After $After
+        if ($entry) {
+            return $entry
+        }
+        Start-Sleep -Milliseconds $PollMs
+    }
+    return $null
 }
 
 function Ensure-ProjectPath {
@@ -189,6 +215,9 @@ if ($LaunchPattern) {
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
 $logsDir = Join-Path $repoRoot 'logs'
+if (-not (Test-Path $logsDir)) {
+    New-Item -ItemType Directory -Path $logsDir | Out-Null
+}
 $diagnosticsFile = Get-LatestDiagnosticsFile -LogsDir $logsDir
 $previousTimestamp = [DateTimeOffset]::MinValue
 if ($diagnosticsFile) {
@@ -219,6 +248,13 @@ if ($null -ne $preset) {
 }
 
 $results = @()
+$overallOk = $true
+
+if (-not $OutCsv) {
+    $stamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
+    $OutCsv = Join-Path $logsDir "selection_offset_$stamp.csv"
+}
+"timestamp,scenario,left,top,width,height,dx,dy,dw,dh,ok" | Out-File -FilePath $OutCsv -Encoding UTF8 -Force
 
 for ($i = 1; $i -le $Runs; $i++) {
     Write-Host "実行 $i / $Runs" -ForegroundColor Yellow
@@ -228,7 +264,7 @@ for ($i = 1; $i -le $Runs; $i++) {
 
     Push-Location $repoRoot
     try {
-        dotnet run --project $Project | Write-Output
+        & dotnet run --project $Project | Write-Output
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -242,18 +278,21 @@ for ($i = 1; $i -le $Runs; $i++) {
 
     if ($exitCode -ne 0) {
         Write-Warning "dotnet run がコード $exitCode で終了しました。この実行の計測はスキップします。"
+        $overallOk = $false
         continue
     }
 
     $diagnosticsFile = Get-LatestDiagnosticsFile -LogsDir $logsDir
     if (-not $diagnosticsFile) {
         Write-Warning "診断ログが見つかりません。capture diagnostics が有効か確認してください。"
+        $overallOk = $false
         continue
     }
 
-    $entry = Read-SelectionEntry -LogPath $diagnosticsFile.FullName -ScenarioFilter $Scenario -After $previousTimestamp
+    $entry = Wait-SelectionEntry -LogPath $diagnosticsFile.FullName -ScenarioFilter $Scenario -After $previousTimestamp -TimeoutSec $WaitTimeoutSec -PollMs $PollIntervalMs
     if (-not $entry) {
         Write-Warning "$($diagnosticsFile.Name) に新しい selection エントリがありません。"
+        $overallOk = $false
         continue
     }
 
@@ -273,14 +312,33 @@ for ($i = 1; $i -le $Runs; $i++) {
     }
     $results += $delta
 
+    $ok = ([math]::Abs($delta.Dx) -le $ToleranceX) -and
+          ([math]::Abs($delta.Dy) -le $ToleranceY) -and
+          ([math]::Abs($delta.Dw) -le $ToleranceW) -and
+          ([math]::Abs($delta.Dh) -le $ToleranceH)
+    if (-not $ok) {
+        $overallOk = $false
+    }
+
     Write-Host ("  取得した矩形: ({0}, {1}, {2}×{3})" -f $delta.Left, $delta.Top, $delta.Width, $delta.Height)
-    Write-Host ("  差分: (dx={0}, dy={1}, dw={2}, dh={3})" -f $delta.Dx, $delta.Dy, $delta.Dw, $delta.Dh) -ForegroundColor Green
+    $color = if ($ok) { 'Green' } else { 'Red' }
+    Write-Host ("  差分: (dx={0}, dy={1}, dw={2}, dh={3}) 判定={4}" -f $delta.Dx, $delta.Dy, $delta.Dw, $delta.Dh, ($ok ? "OK" : "NG")) -ForegroundColor $color
     Write-Host ""
+
+    ("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10}" -f `
+        $delta.Timestamp.ToString("o"), $Scenario, $delta.Left, $delta.Top, $delta.Width, $delta.Height, `
+        $delta.Dx, $delta.Dy, $delta.Dw, $delta.Dh, $ok) | Add-Content -Path $OutCsv -Encoding UTF8
 }
 
 if ($results.Count -gt 0) {
     Write-Host "=== サマリー ===" -ForegroundColor Cyan
     $results | Select-Object Timestamp, Left, Top, Width, Height, Dx, Dy, Dw, Dh | Format-Table -AutoSize
+    Write-Host "CSV: $OutCsv"
 } else {
     Write-Host "有効な計測結果はありませんでした。"
+}
+
+if (-not $overallOk) {
+    Write-Host "閾値を超えた結果があります。" -ForegroundColor Red
+    exit 1
 }
