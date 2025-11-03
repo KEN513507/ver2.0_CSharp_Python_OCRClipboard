@@ -1,13 +1,10 @@
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-import numpy as np
-# import torch  # Disabled: torch dependency causes collection errors
-
-# NOTE: PaddleVL tests are disabled due to torch/transformers dependency issues
-# These tests are for advanced multimodal OCR features not currently in scope
-pytestmark = pytest.mark.skip(reason="PaddleVL tests require torch/transformers setup")
+from unittest.mock import Mock, patch
 
 import pytest
+
+pytest.importorskip("torch")
+import torch
 
 
 class TestPaddleVLOCR(unittest.TestCase):
@@ -28,8 +25,8 @@ class TestPaddleVLOCR(unittest.TestCase):
 
         # Test initialization (this would be in a real implementation)
         try:
-            model = mock_model('PaddlePaddle/PaddleOCR-VL-0.9B', torch_dtype=torch.float16, device_map="auto")
-            tokenizer = mock_tokenizer('PaddlePaddle/PaddleOCR-VL-0.9B')
+            mock_model('PaddlePaddle/PaddleOCR-VL-0.9B', torch_dtype=torch.float16, device_map="auto")
+            mock_tokenizer('PaddlePaddle/PaddleOCR-VL-0.9B')
 
             # Verify model was loaded with correct parameters
             mock_model.assert_called_once_with(
@@ -68,9 +65,6 @@ class TestPaddleVLOCR(unittest.TestCase):
             # Simulate inference
             model = mock_model('PaddlePaddle/PaddleOCR-VL-0.9B')
             tokenizer = mock_tokenizer('PaddlePaddle/PaddleOCR-VL-0.9B')
-
-            # Mock image input (would be processed image tensor)
-            mock_image_tensor = torch.randn(3, 224, 224)  # RGB image
 
             # Mock text prompt
             prompt = "OCR this image:"

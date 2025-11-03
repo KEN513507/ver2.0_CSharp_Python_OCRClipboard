@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+pythonpath = [".", "src/python", "ocr-screenshot-app"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+	"slow: heavy OCR or model init",
+]
+addopts = "-q -m \"not slow\" --durations=10 -W ignore::UserWarning"

@@ -1,6 +1,48 @@
 # OCR Clipboard v2.0 (Quick View)
 
+**現状の制限（2025-11-03更新）**
+- Display 1 専用・DPI 100% 前提で品質保証
+- 日本語 UI の OCR 最適化中（誤差は原文の25%または20文字まで、10秒以内を目標）
+- マハラノビス距離によるOCR品質異常検知機能追加（D² > 26.0で警告）
+- 実機OCRは `pytest -m "slow"` で個別実行（通常テストから除外）
+- CLI出力は stdout の JSON、stderr は人間向けログ
+
+## クイックスタート
+
+```bash
+# Python環境セットアップ（ocr_worker用）
+pip install -r src/python/requirements.txt
+
+# C#アプリ実行
+dotnet run --project src/csharp/OCRClipboard.App
+```
+
+## 本番直前チェックリスト（2025-11-03更新）
+
+- `pip list --outdated` で非互換アップデートに注意
+- `pip freeze > requirements.txt` で依存ファイルを最新化
+- `pipdeptree` で依存関係のねじれ・重複を確認
+- `pytest` で最低限のユニット・統合テストを実行
+- `python tools/visualize_ocr_results.py` でマハラノビス異常検知テスト
+- `gh workflow run` でGitHub ActionsのCIが正常稼働するか確認
+- `git log --oneline --graph` でマージ/リベース履歴の破綻がないか確認
+- 本番環境で `docker-compose run` など仮想テストを行い、環境差異・DLL・DPI問題を排除
+
+---
+
 最小限の情報だけをまとめた README です。詳しい流れは `docs/DOCUMENTATION_NAV.md` から辿れます。
+
+## できること
+````markdown
+# OCR Clipboard v2.0 (Quick View)
+
+最小限の情報だけをまとめた README です。詳しい流れは `docs/DOCUMENTATION_NAV.md` から辿れます。
+
+**現状の制限（2025-10-30）**
+- Display 1 専用・DPI 100% 前提で品質保証
+- 日本語 UI の OCR 最適化中（誤差は原文の25%または20文字まで、10秒以内を目標）
+- 実機OCRは `pytest -m "slow"` で個別実行（通常テストから除外）
+- CLI出力は stdout の JSON、stderr は人間向けログ
 
 ## できること
 - 最新の要件・DFD/ER 図は `docs/requirements_trace_20251102.md` に集約されています。本リポジトリで最優先に参照すべきドキュメントです。
@@ -15,17 +57,9 @@ dotnet run --project src/csharp/OCRClipboard.App
 - 指示どおりに範囲を選択すれば、`logs/debug_capture.png` とクリップボードに結果が出力されます。
 
 ## ドキュメント参照順
-1. `docs/requirements_trace_20251102.md` … 最新要件・DFD/ER・テスト観点を集約した**必読ドキュメント**。
+1. `docs/requirements_trace_20251102.md` … 最新要件・DFD/ER・テスト観点を集約した必読ドキュメント。
 2. `PROJECT_SPEC.md` … ユーザー体験とプロセス分解（P1〜P9）、時間配分などの設計背景。
 3. `docs/DOCUMENTATION_NAV.md` … 各資料への案内図と関連コマンド。
-
-上記の順番で読めば、要件→設計→補足情報の流れが把握できます。
-
-## 補助ドキュメント
-- `docs/OCR_TEST_SET1_PLAN.md` … テストデータ set1 をワンコマンド生成する手順
-- `tools/` … 自動化スクリプト群。`build_set1.ps1` の中身やフォント調整はここ
-- `test_images/set1/` … 生成された `.txt` / `.png` / `manifest.csv` の保管場所
-- `FACTORY_IMPROVEMENTS.md` … 手作業 → 自動化への改善履歴
 
 ## フォルダのざっくり構成
 - `src/csharp/OCRClipboard.App` … C# ホスト（Python に処理を渡す）
@@ -45,4 +79,6 @@ dotnet run --project src/csharp/OCRClipboard.App
   - ローカルでもチェックしたい場合は `git config core.hooksPath githooks` を一度実行してください。
 
 ---  
-詳細を読みたくなったら `docs/DOCUMENTATION_NAV.md` を開いてください。***
+詳細を読みたくなったら `docs/DOCUMENTATION_NAV.md` を開いてください。
+````
+.\start_ocr_worker.cmd

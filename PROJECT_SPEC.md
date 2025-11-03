@@ -1,11 +1,12 @@
-# OCR Clipboard v2.0 開発仕様
+python -m unittest discover# OCR Clipboard v2.0 開発仕様
 
 > **備考**: このファイルは UX とプロセス分解の概要をまとめたものです。最新の要件定義・DFD/ER 図・実装状況は `docs/requirements_trace_20251102.md` を必ず参照してください。推奨読順は「1. `docs/requirements_trace_20251102.md` → 2. `PROJECT_SPEC.md`（本書）→ 3. `docs/DOCUMENTATION_NAV.md`」です。
 
 ## 概要
 - C#（WinUI3）＋Pythonの二層構成
-- 10秒以内・誤差≤4文字の品質制約
+- 10秒以内・誤差≤3文字の品質制約（強化）
 - テスト画像セット（A1〜E1）・期待語句は test_cases.json に準拠
+- プライマリ画面のみ対応（セカンダリ画面は今後検討）
 
 ---
 

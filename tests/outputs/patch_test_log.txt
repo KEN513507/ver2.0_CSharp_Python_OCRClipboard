@@ -1,0 +1,15 @@
+[INIT] yomitoku disabled by env
+[INIT] PaddleOCR: lang=japan, use_angle_cls=False, det_db_thresh=0.2, det_box_thresh=0.5, unclip_ratio=1.8, det_limit=1920, rec_batch=1, drop_score=0.5, use_dilation=True, binarize=True, invert=False
+[DEBUG] PaddleOCR lang=japan: extracted 11 text blocks
+OK 002 clean-dense          engine=paddle   CER=0.170 jq=True
+[INIT] yomitoku disabled by env
+[INIT] PaddleOCR: lang=en, use_angle_cls=False, det_db_thresh=0.2, det_box_thresh=0.5, unclip_ratio=1.8, det_limit=1920, rec_batch=1, drop_score=0.5, use_dilation=True, binarize=True, invert=False
+[DEBUG] PaddleOCR lang=en: extracted 12 text blocks
+NG 008 mono-code            engine=paddle   CER=0.626 jq=False
+[INIT] yomitoku disabled by env
+[DEBUG] PaddleOCR lang=japan: extracted 32 text blocks
+NG 012 lowcontrast-dense    engine=paddle   CER=0.901 jq=False
+
+Dataset Summary(CER<=0.3): 1/3 passed
+Saved: C:\Users\user\Documents\Projects\ver2_0_CSharp_Python_OCRClipboard\tests\outputs\ocr_dataset_eval.json
+Saved: C:\Users\user\Documents\Projects\ver2_0_CSharp_Python_OCRClipboard\tests\outputs\ocr_dataset_eval.jsonl

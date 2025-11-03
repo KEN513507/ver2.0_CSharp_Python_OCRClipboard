@@ -35,9 +35,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv/
-.venv*/
-.venv-ocr27/
 .env
 venv/
 .envrc
@@ -110,8 +107,5 @@ coverage/
 cache/
 huggingface/
 .codex/
-# Build/test artifacts
-tests/outputs/
-outputs/
-tmp/
-logs/**/*.jsonl
+
+.venv_clean/

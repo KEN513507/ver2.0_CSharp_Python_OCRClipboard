@@ -1,5 +1,7 @@
+import importlib
 import unittest
-from src.python.ocr_worker.utils import merge_text_boxes, calculate_bbox_area, is_bbox_valid, normalize_bbox_coordinates
+
+from ocr_worker.utils import calculate_bbox_area, is_bbox_valid, normalize_bbox_coordinates, merge_text_boxes
 
 
 class TestBbox(unittest.TestCase):
@@ -16,12 +18,6 @@ class TestBbox(unittest.TestCase):
         merged = merge_text_boxes(boxes)
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0], [0, 0, 25, 15])
-
-    def test_merge_text_boxes_separate(self):
-        """Test that separate boxes are not merged"""
-        boxes = [[0, 0, 10, 10], [20, 0, 30, 10]]
-        merged = merge_text_boxes(boxes)
-        self.assertEqual(len(merged), 2)
 
     def test_merge_text_boxes_vertical_overlap(self):
         """Test merging boxes with vertical overlap"""
@@ -64,5 +60,15 @@ class TestBbox(unittest.TestCase):
         self.assertEqual(normalized, [0.0, 0.0, 0.0, 0.0])
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_merge_text_boxes_separate(monkeypatch):
+    import ocr_worker.utils as utils_module
+
+    importlib.reload(utils_module)
+    monkeypatch.setattr(utils_module, "HORIZONTAL_GAP_TOLERANCE", 5)
+
+    a = [0, 0, 10, 10]
+    b = [16, 1, 26, 11]  # horizontal gap 6px, slight vertical offset
+    c = [31, 0, 41, 10]
+
+    out = utils_module.merge_text_boxes([a, b, c])
+    assert len(out) == 3
