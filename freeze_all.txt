@@ -70,7 +70,7 @@ requests==2.32.5
 ruamel.yaml==0.18.16
 ruamel.yaml.clib==0.2.14
 safetensors==0.6.2
-setuptools==65.5.0
+setuptools==82.0.1
 shapely==2.1.2
 shellingham==1.5.4
 six==1.17.0
