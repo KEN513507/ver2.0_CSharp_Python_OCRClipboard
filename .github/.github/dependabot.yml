@@ -1,0 +1,27 @@
+name: Generate SBOM
+on:
+  push:
+    paths:
+      - '**/requirements.txt'
+      - '**/package.json'
+
+jobs:
+  build-sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install CycloneDX
+        run: pip install cyclonedx-bom
+      - name: Generate SBOM
+        run: cyclonedx-bom -r -o bom.xml
+      - name: Commit SBOM
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add bom.xml
+          git commit -m "Update SBOM" || echo "No changes"
+          git push
