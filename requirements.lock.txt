@@ -67,7 +67,7 @@ pycryptodome==3.23.0
 pydantic==2.12.3
 pydantic_core==2.41.4
 PyMuPDF==1.20.2
-pyparsing==3.2.5
+pyparsing==3.3.2
 python-dateutil==2.9.0.post0
 python-docx==1.2.0
 pytz==2025.2
