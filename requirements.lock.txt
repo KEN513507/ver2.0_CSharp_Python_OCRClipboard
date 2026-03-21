@@ -9,7 +9,7 @@ blinker==1.9.0
 cachetools==6.2.1
 certifi==2025.10.5
 chardet==5.2.0
-charset-normalizer==3.4.4
+charset-normalizer==3.4.6
 click==8.3.0
 colorama==0.4.6
 colorlog==6.10.1
