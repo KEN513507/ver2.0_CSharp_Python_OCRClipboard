@@ -3,7 +3,7 @@
 # 仮想環境構築
 env:
 	python -m venv .venv
-	. .venv/Scripts/activate && pip install -r requirements.txt
+	. .venv/bin/activate && pip install -r requirements.txt
 
 # テスト全部走らせる
 test:
@@ -34,6 +34,6 @@ check:
 
 # 追加のスモークテストと高速テスト実行
 smoke-and-fast-test:
-	@PYTHONPATH=src/python python -m ocr_screenshot_app.main --image test_image.png --no-clipboard --json > NUL 2> NUL
+	@PYTHONPATH=src/python python -m ocr_screenshot_app.main --image test_image.png --no-clipboard --json > /dev/null 2>&1
 	@echo smoke ok
 	@pytest -m "not slow" --maxfail=1
