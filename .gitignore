@@ -97,4 +97,3 @@ huggingface/
 *.save
 system_audit_*.log
 # Ubuntu環境
-.venv-ocr27/
