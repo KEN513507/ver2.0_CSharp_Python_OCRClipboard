@@ -23,13 +23,11 @@ Thumbs.db
 *.asc
 *.env
 secrets.json
-
 # User files
 *.sqlite
 *.db
 *.db3
 *.litedb
-
 # Python
 __pycache__/
 *.pyc
@@ -38,7 +36,6 @@ __pycache__/
 .env
 venv/
 .envrc
-
 # C#/.NET
 bin/
 obj/
@@ -49,8 +46,6 @@ obj/
 *.cache
 *.pdb
 *.mdb
-*.exe
-*.dll
 *.nupkg
 *.nuget
 *.snk
@@ -59,22 +54,16 @@ obj/
 *.vsix
 *.vsixmanifest
 *.vsscc
-*.vssscc
 *.scc
-*.suo
 *.sdf
 *.opensdf
 *.VC.db
 *.VC.opendb
 *.pidb
 *.svclog
-*.suo
 *.userprefs
 *.dbmdl
-*.bak
-*.log
 *.vs/
-
 # Test/coverage
 coverage/
 *.cover
@@ -85,7 +74,6 @@ coverage/
 *.trx
 *.xml
 *.json
-
 # Others
 .idea/
 *.iml
@@ -97,15 +85,16 @@ coverage/
 *.rej
 *.patch
 *.diff
-
 # Project specific
 # Add more patterns as needed
-*.log
-*.json
-*.bak
 *.viminf
 cache/
 huggingface/
 .codex/
-
 .venv_clean/
+.venv-ocr27/
+# Ubuntu環境追加
+*.save
+system_audit_*.log
+# Ubuntu環境
+.venv-ocr27/
