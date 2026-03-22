@@ -116,7 +116,7 @@ def main():
     if all_ok:
         print("✅ すべての前提条件が整っています。")
         print("   次のコマンドでツールを実行できます:")
-        print("   python scan_simple.py")
+        print("   python scan_clipboard.py")
         print("   またはショートカットに登録してください。")
     else:
         print("❌ いくつか条件が不足しています。上記のエラーを解消してください。")

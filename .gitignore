@@ -1,17 +1,60 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
 .venv-ocr27/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Logs
+# IDE
+.vscode/
+.idea/
+*.swp
+*.sublime-*
+
+# Logs and databases
 *.log
-ocr_debug.log
+*.sqlite
+*.db
 
-# Secrets (絶対にアップロードしない)
-ocr-key.json
-ocr-snipping-app-key.json
-policy.json
-.env
-
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+ocr-snipping-app-key.json
+config.json
+ocr_wrapper.log
+/tmp/ocr_capture.png
+test_images/set1/*.png
+!test_images/set1/001__JP__clean.png
+test_images/set1/*.txt
+!test_images/set1/001__JP__clean.txt
+*.json
+!config.json
+!pyproject.toml
+!package.json
+!requirements.txt
