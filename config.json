@@ -1,0 +1,13 @@
+{
+    "clipboard_wrapper": {
+        "enabled": true,
+        "prefix_text": "あなたは優秀なデータセンター運営責任者、およびアドバイザーです。\nユーザーはゲームシミュレーションの中一人でデータセンターを運営、作業しています。\n最大限の支援をしてください。",
+        "suffix_text": "{制約}\n[ルール]\n｛現在の稼働中の顧客名称｝",
+        "timestamp_enabled": true,
+        "timestamp_format": "%Y-%m-%d %H:%M:%S",
+        "timestamp_position": "start",
+        "debug_log": true,
+        "log_level": "INFO",
+        "log_file": "ocr_wrapper.log"
+    }
+}

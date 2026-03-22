@@ -1,0 +1,10 @@
+[
+  {
+    "scale": 1.0,
+    "expected_text": "[G検定: モデル評価]\nAccuracy (正解率) は 90.5% だが、不均衡データのため F...",
+    "actual_text": "Report-ID. ML-001-S5 (SVM)   AUC (k-NN, K=5) 0.88 ...",
+    "confidence": 0.11011193931370514,
+    "error_distance": 123,
+    "quality_ok": 0.1907894736842105
+  }
+]

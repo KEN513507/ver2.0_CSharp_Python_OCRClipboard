@@ -6,7 +6,9 @@
 - Script under test: `tests/scripts/test_ocr_accuracy.py`
 - Data set: `test_images/set1` (12 samples, JP / EN / MIX)
 - Focus samples: `002__JP__clean-dense.png`, `008__JP__mono-code.png`, `012__MIX__lowcontrast-dense.png`
-- Worker backend: `src/python/ocr_worker/handler.py`
+- Worker backend: `
+
+`
 
 ## Findings
 1. **PaddleOCR hyperparameters not applied**

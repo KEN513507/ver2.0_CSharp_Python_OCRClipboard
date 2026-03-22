@@ -21,7 +21,7 @@ EXPERIMENTS = {
         "env": {},
         "description": "現在の設定（比較用）"
     },
-    
+
     "dense_optimized": {
         "name": "Dense優先 (002対策)",
         "env": {
@@ -32,7 +32,7 @@ EXPERIMENTS = {
         },
         "description": "高密度テキスト検出を強化"
     },
-    
+
     "symbol_optimized": {
         "name": "記号優先 (008対策)",
         "env": {
@@ -41,7 +41,7 @@ EXPERIMENTS = {
         },
         "description": "記号・罫線認識を強化"
     },
-    
+
     "lowcontrast_optimized": {
         "name": "LowContrast優先 (012対策)",
         "env": {
@@ -51,7 +51,7 @@ EXPERIMENTS = {
         },
         "description": "低コントラスト検出を強化"
     },
-    
+
     "integrated_best": {
         "name": "統合最適化 (全対策)",
         "env": {
@@ -73,11 +73,11 @@ FOCUS_CASES = ["002", "008", "012"]
 def run_test(experiment_name, env_vars):
     """テストを実行してJSONL結果を返す"""
     import os
-    
+
     # 環境変数を設定
     test_env = os.environ.copy()
     test_env.update(env_vars)
-    
+
     # テスト実行
     cmd = [
         "python",
@@ -87,37 +87,37 @@ def run_test(experiment_name, env_vars):
         "--manifest", "manifest.csv",
         "--threshold", "0.30"
     ]
-    
+
     print(f"\n{'='*80}")
     print(f"実験: {experiment_name}")
     print(f"環境変数: {env_vars}")
     print(f"{'='*80}")
-    
+
     result = subprocess.run(
         cmd,
         env=test_env,
         capture_output=True,
         text=True
     )
-    
+
     # 結果JSONLを読み込み
     jsonl_path = Path("tests/outputs/ocr_dataset_eval.jsonl")
     if not jsonl_path.exists():
         print(f"❌ 結果ファイルが見つかりません: {jsonl_path}")
         return []
-    
+
     results = []
     with open(jsonl_path, 'r', encoding='utf-8') as f:
         for line in f:
             results.append(json.loads(line))
-    
+
     return results
 
 def analyze_results(experiment_name, results):
     """結果を分析してスコアを計算"""
     total_cases = len(results)
     passed = sum(1 for r in results if r["quality_ok"])
-    
+
     # 重点ケースの改善度
     focus_improvements = {}
     for case_id in FOCUS_CASES:
@@ -128,7 +128,7 @@ def analyze_results(experiment_name, results):
                 "passed": case_result["quality_ok"],
                 "engine": case_result["engine"]
             }
-    
+
     return {
         "experiment": experiment_name,
         "total_passed": passed,
@@ -147,14 +147,14 @@ def main():
     print("  - 008 (mono-code):   CER 0.497 → < 0.30")
     print("  - 012 (lowcontrast): CER 1.000 → < 0.30")
     print("=" * 80)
-    
+
     all_results = {}
-    
+
     for exp_id, exp_config in EXPERIMENTS.items():
         results = run_test(exp_config["name"], exp_config["env"])
         analysis = analyze_results(exp_config["name"], results)
         all_results[exp_id] = analysis
-        
+
         # 即座に結果を表示
         print(f"\n結果: {exp_config['name']}")
         print(f"  合格率: {analysis['pass_rate']:.1%} ({analysis['total_passed']}/{analysis['total_cases']})")
@@ -162,32 +162,32 @@ def main():
         for case_id, improvement in analysis['focus_improvements'].items():
             status = "✅" if improvement["passed"] else "❌"
             print(f"    {status} {case_id}: CER={improvement['cer']:.3f}, engine={improvement['engine']}")
-    
+
     # 最終サマリー
     print("\n" + "=" * 80)
     print("実験サマリー")
     print("=" * 80)
-    
+
     # ベストを選出
     best_exp = max(all_results.items(), key=lambda x: x[1]["pass_rate"])
     print(f"\n🏆 ベスト設定: {EXPERIMENTS[best_exp[0]]['name']}")
     print(f"   合格率: {best_exp[1]['pass_rate']:.1%}")
     print(f"   環境変数: {EXPERIMENTS[best_exp[0]]['env']}")
-    
+
     # 重点ケース改善度
     print(f"\n📊 重点ケース改善:")
     for case_id in FOCUS_CASES:
         baseline_cer = all_results["baseline"]["focus_improvements"][case_id]["cer"]
         best_cer = best_exp[1]["focus_improvements"][case_id]["cer"]
         improvement = (baseline_cer - best_cer) / baseline_cer * 100
-        
+
         print(f"   {case_id}: {baseline_cer:.3f} → {best_cer:.3f} ({improvement:+.1f}%)")
-    
+
     # 結果をJSONに保存
     output_path = Path("tests/outputs/hyperparameter_search_results.json")
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
-    
+
     print(f"\n💾 詳細結果を保存: {output_path}")
 
 if __name__ == "__main__":
