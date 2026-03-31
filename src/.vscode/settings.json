@@ -1,5 +1,0 @@
-// .vscode/settings.json
-{
-  "python.defaultInterpreterPath": "${workspaceFolder}/.venv-ocr27/bin/python",
-  "python.analysis.extraPaths": ["${workspaceFolder}/src/python"]
-}

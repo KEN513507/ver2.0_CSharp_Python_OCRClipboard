@@ -1,12 +1,16 @@
 # verify_vision.py
-from google.cloud import vision
-import os
+from google.cloud.vision_v1 import ImageAnnotatorClient
+from google.cloud.vision_v1.types import Image
 
 def test_connection():
     try:
-        # 環境変数から自動的に認証情報を読み込む
-        client = vision.ImageAnnotatorClient()
-        # サービスのリストを取得しようとしてみる（権限の最小テスト）
+        # クライアント初期化
+        client = ImageAnnotatorClient()
+        
+        # 空のダミー画像で型チェック用の呼び出し
+        dummy_image = Image(content=b"")  # type: ignore
+        response = client.text_detection(image=dummy_image)  # type: ignore
+
         print("✅ Google Cloud Vision API への接続に成功しました！")
     except Exception as e:
         print(f"❌ 接続エラー: {e}")

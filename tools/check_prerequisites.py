@@ -8,6 +8,8 @@ import sys
 import subprocess
 import shutil
 
+
+
 def check_command(cmd, package=None):
     """コマンドの存在確認。なければエラー表示"""
     if shutil.which(cmd) is None:
@@ -61,18 +63,28 @@ def test_cloud_vision_api():
     """Cloud Vision API の簡易疎通テスト（1x1 ダミー画像）"""
     print("\n🔍 Cloud Vision API 疎通テスト...")
     try:
-        from google.cloud import vision
-        client = vision.ImageAnnotatorClient()
-        # 1x1 の白い画像
-        dummy = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc````\x00\x00\x00\x05\x00\x01\xa3\xeb\x00\xed\x00\x00\x00\x00IEND\xaeB`\x82'
-        image = vision.Image(content=dummy)
-        response = client.text_detection(image=image)
-        # エラーがあれば例外が出る
-        print("   ✅ API 呼び出し成功（ダミー画像）")
+        from google.cloud.vision_v1 import ImageAnnotatorClient
+        from google.cloud.vision_v1.types import Image
+
+        client = ImageAnnotatorClient()
+        # 1x1 黒ピクセルの PNG データ
+        dummy_bytes = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00\x00\x00:~\x9bU'
+            b'\x00\x00\x00\nIDATx\x9cc\x00\x00\x00\x02\x00\x01\xe5\x8b\xdf\x18\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        # Image オブジェクトを作成
+        img = Image(content=dummy_bytes)
+
+        # text_detection を呼び出す (引数は位置引数でもキーワード引数でも可)
+        response = client.text_detection(img)  # ← 位置引数で渡す
+        # 正常にレスポンスが返ってきたら成功
+        print("✅ Cloud Vision API への接続に成功しました！")
         return True
     except Exception as e:
-        print(f"   ❌ API 呼び出し失敗: {e}")
+        print(f"❌ Cloud Vision API への接続に失敗: {e}")
         return False
+
+
 
 def main():
     print("=" * 60)

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.env
 env/
 venv/
 .venv-ocr27/
@@ -46,6 +47,7 @@ Thumbs.db
 
 # Project specific
 ocr-snipping-app-key.json
+*key.json
 config.json
 ocr_wrapper.log
 /tmp/ocr_capture.png
