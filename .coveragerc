@@ -1,0 +1,12 @@
+[run]
+source = 
+    .
+    src
+omit = 
+    tests/*
+    .venv-ocr27/*
+    */__init__.py
+
+[report]
+show_missing = True
+precision = 2
